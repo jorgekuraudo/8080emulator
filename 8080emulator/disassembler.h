@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <vector>
 #include <string>
+#include <iomanip>
 
 class disassembler
 {
@@ -21,6 +22,6 @@ public:
 
 	void disassemble();
 
-	static std::vector<std::string> splitString(std::string line);
+	static std::vector<std::string> splitString(std::string line, char ch);
 };
 
