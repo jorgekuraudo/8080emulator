@@ -80,7 +80,7 @@ void disassembler::disassemble() {
 			file.read(currentByte, 1);
 			std::cout << "0x" << std::hex << (0xff & (unsigned int)currentByte[0]) << ' ';
 		}
-		std::cout << '\t' << all_codes[index].instruction << '\n';
+		std::cout << '\r' << '\t' << '\t' << all_codes[index].instruction << '\n';
 		offset += size;
 	}
 }
