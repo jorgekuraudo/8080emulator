@@ -59,7 +59,6 @@ void disassembler::disassemble() {
 		catch(std::invalid_argument& e) {
 			code.instruction_size = 1;
 		}
-		//std::cout << "0x" << std::hex << code.instruction_code << std::endl;
 
 		all_codes.push_back(code);
 	}
