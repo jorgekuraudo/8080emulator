@@ -2,7 +2,7 @@
 
 disassembler::disassembler(const char* _path) {
 	path = _path;
-	file.open(path);
+	file.open(path, std::ifstream::binary);
 	if (file.is_open()) {
 		std::cout << "File " << path << " was opened" << std::endl;;
 	}
@@ -17,14 +17,14 @@ disassembler::~disassembler() {
 }
 
 void disassembler::printRawData() {
-	char currentByte[1];
+	char currentByte;
 	int count{ 0 };
 	int bytesPerRow = 16;
-	while (file.peek() != EOF) {
+	while(!file.eof()) {
 		for (int i = 0; i < bytesPerRow; ++i) {
-			file.read(currentByte, 1);
+			file.read(&currentByte, 1);
 			//std::cout << std::showbase << std::hex << currentByte[0] << std::endl;
-			printf("%02hhx ", currentByte[0]);
+			printf("%02hhx ", currentByte);
 			++count;
 			file.seekg(count);
 		}
@@ -66,20 +66,20 @@ void disassembler::disassemble() {
 	//parse the file
 	char currentByte[1];
 	int offset{ 0 };
-	while (file.peek() != EOF) {
+	while (!file.eof()) {
 		file.seekg(offset);
 		file.read(currentByte, 1);
 		unsigned int index = (0xff & (unsigned int)currentByte[0]);
 		int size = all_codes[index].instruction_size;
 		
 		//print intructions on screen
-		std::cout << "0x" << std::hex << all_codes[index].instruction_code << ' ';
+		std::cout << "0x" << offset << '\t' << "0x" << std::hex << all_codes[index].instruction_code << ' ';
 		for (int i = 1; i < size; ++i) {
 			file.seekg(offset + i);
 			file.read(currentByte, 1);
 			std::cout << "0x" << std::hex << (0xff & (unsigned int)currentByte[0]) << ' ';
 		}
-		std::cout << '\r' << '\t' << '\t' << all_codes[index].instruction << '\n';
+		std::cout << '\r' << '\t' << '\t' << '\t' << all_codes[index].instruction << '\n';
 		offset += size;
 	}
 }

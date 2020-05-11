@@ -3,7 +3,7 @@
 
 int main() {
 	//open the file
-	const char* path = "C:/Users/jmm_1/Downloads/invaders.h";
+	const char* path = "C:/Users/jmm_1/Desktop/invadersrom/invaders";
 	try {
 		disassembler dis(path);
 		dis.disassemble();
