@@ -142,7 +142,10 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="condition_flags.h" />
     <ClInclude Include="disassembler.h" />
+    <ClInclude Include="emulateOpCode.h" />
+    <ClInclude Include="registers.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
