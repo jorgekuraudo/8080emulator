@@ -3,31 +3,34 @@
 #include "registers.h"
 
 void emulateOpCode(State8080* state) {
-	uint16_t instruction = state->PC;
+	uint8_t* opcode = &state->memory[state->PC];
 
-	switch (instruction)
+	switch (*opcode)
 	{
 	case 0x0: break; //NOP
 	case 0x1:		//LXI B,D16
-		state->B = state->PC + 2;
-		state->C = state->PC + 1;
+		state->B = opcode[2];
+		state->C = opcode[1];
 		state->PC += 2;
 		break;
 	case 0x2: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x3:		//INX B
-		uint16_t BC_pair = (uint16_t)state->C + (uint16_t)state->B << 8;
+	{
+		uint16_t BC_pair = state->C | (state->B << 8);
 		uint16_t result = BC_pair + 0x01;
 		state->C = BC_pair & 0xff;
 		state->B = (BC_pair >> 8) & 0xff;
 		break;
+	}
 	case 0x4: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x5: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x6: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x7: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x8: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x9:		//DAD B
-		uint16_t HL_pair = (uint16_t)state->L + (uint16_t)state->H << 8;
-		uint16_t BC_pair = (uint16_t)state->C + (uint16_t)state->B << 8;
+	{
+		uint16_t HL_pair = state->L | (state->H << 8);
+		uint16_t BC_pair = state->C | (state->B << 8);
 		HL_pair += BC_pair;
 		//set carry flag:
 		HL_pair & 0x80 != 0 ? state->flag.C = true : state->flag.C = false;
@@ -35,6 +38,7 @@ void emulateOpCode(State8080* state) {
 		state->L = HL_pair & 0xff;
 		state->H = (HL_pair >> 8) & 0xff;
 		break;
+	}
 	case 0xa: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xb: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xc: std::cout << "Not implemented yet" << std::endl; break;
@@ -154,6 +158,7 @@ void emulateOpCode(State8080* state) {
 	case 0x7e: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x7f: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x80:		//ADD B
+	{
 		uint16_t result = (uint16_t)state->A + (uint16_t)state->B;
 		//flags:
 		//Zero flag
@@ -163,13 +168,14 @@ void emulateOpCode(State8080* state) {
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
-		(result & 0xff) % 0 == 0 ? state->flag.P = true : state->flag.P = false;
+		(result & 0xff) % 2 == 0 ? state->flag.P = true : state->flag.P = false;
 		//Auxiliary carry flag
 		//don't implement yet
 
 		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
 
 		break;
+	}
 	case 0x81: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x82: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x83: std::cout << "Not implemented yet" << std::endl; break;
@@ -178,6 +184,7 @@ void emulateOpCode(State8080* state) {
 	case 0x86: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x87: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x88:		//ADC B
+	{
 		uint16_t result = (uint16_t)state->A + (uint16_t)state->B + 0x01; //added bit from carry
 		//flags:
 		//Zero flag
@@ -187,12 +194,13 @@ void emulateOpCode(State8080* state) {
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
-		(result & 0xff) % 0 == 0 ? state->flag.P = true : state->flag.P = false;
+		(result & 0xff) % 2 == 0 ? state->flag.P = true : state->flag.P = false;
 		//Auxiliary carry flag
 		//don't implement yet
 
 		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
 		break;
+	}
 	case 0x89: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x8a: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x8b: std::cout << "Not implemented yet" << std::endl; break;
@@ -250,12 +258,29 @@ void emulateOpCode(State8080* state) {
 	case 0xbf: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xc0: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xc1: std::cout << "Not implemented yet" << std::endl; break;
-	case 0xc2: std::cout << "Not implemented yet" << std::endl; break;
-	case 0xc3: std::cout << "Not implemented yet" << std::endl; break;
+	case 0xc2:		//JMZ
+	{
+		if (state->flag.Z) {
+			uint16_t result = opcode[2] | (opcode[1] << 8);
+			state->PC = result;
+		}
+		else {
+			state->PC += 2;
+		}
+		break;
+	}
+	case 0xc3:		//JMP
+	{
+		//compute the address
+		uint16_t result = opcode[2] | (opcode[1] << 8);
+		state->PC = result;
+		break;
+	}
 	case 0xc4: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xc5: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xc6:		//ADI byte
-		uint16_t result = (uint16_t)state->A + (uint16_t)(state->PC + 1);
+	{
+		uint16_t result = (uint16_t)state->A + (uint16_t)opcode[1];
 		//flags:
 		//Zero flag
 		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
@@ -264,20 +289,32 @@ void emulateOpCode(State8080* state) {
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
-		(result & 0xff) % 0 == 0 ? state->flag.P = true : state->flag.P = false;
+		(result & 0xff) % 2 == 0 ? state->flag.P = true : state->flag.P = false;
 		//Auxiliary carry flag
 		//don't implement yet
 
 		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
 		state->PC += 1; //advance one extra byte
 		break;
+	}
 	case 0xc7: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xc8: std::cout << "Not implemented yet" << std::endl; break;
-	case 0xc9: std::cout << "Not implemented yet" << std::endl; break;
+	case 0xc9:		//RET
+		state->PC = state->memory[state->SP] | (state->memory[state->SP + 1] << 8);
+		state->SP += 2;
+		break;
 	case 0xca: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xcb: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xcc: std::cout << "Not implemented yet" << std::endl; break;
-	case 0xcd: std::cout << "Not implemented yet" << std::endl; break;
+	case 0xcd:		//CALL
+	{
+		uint16_t next = state->PC + 2;
+		state->memory[state->SP - 1] = (next >> 8) & 0xff;
+		state->memory[state->SP - 2] = next & 0xff;
+		state->SP -= 2;
+		state->PC = (opcode[1] << 8) | (opcode[2] & 0xff);
+		break;
+	}
 	case 0xce: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xcf: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xd0: std::cout << "Not implemented yet" << std::endl; break;

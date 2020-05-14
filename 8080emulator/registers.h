@@ -18,6 +18,9 @@ struct State8080 {
 	//program counter
 	uint16_t PC;
 
+	//pointer to where the game is loaded
+	uint8_t* memory;
+
 	//condition flags
 	Flags flag;
 };
