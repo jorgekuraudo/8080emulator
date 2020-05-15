@@ -84,6 +84,20 @@ void disassembler::disassemble() {
 	}
 }
 
+std::vector<uint8_t> disassembler::getInstructions()
+{
+	std::vector<uint8_t> result;
+	char currentByte;
+	int offset{ 0 };
+	while (!file.eof()) {
+		file.seekg(offset);
+		file.read(&currentByte, 1);
+		result.push_back(currentByte);
+		++offset;
+	}
+	return result;
+}
+
 std::vector<std::string> disassembler::splitString(std::string line, char ch) {
 	std::vector<std::string> result;
 	std::string temp{ "" };

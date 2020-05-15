@@ -9,6 +9,24 @@ int main() {
 	try {
 		disassembler dis(path);
 		//dis.disassemble();
+		std::vector<uint8_t> codes = dis.getInstructions();
+		//create a model of the CPU
+		State8080* CPU_state = new State8080;
+		//initialize some CPU parameters
+		CPU_state->memory = &codes[0];
+		CPU_state->PC = 0;
+		CPU_state->A = 0;
+		CPU_state->B = 0;
+		CPU_state->C = 0;
+		CPU_state->D = 0;
+		CPU_state->E = 0;
+		CPU_state->H = 0;
+		CPU_state->L = 0;
+
+		do {
+			emulateOpCode(CPU_state);
+			//printf("%02hhx ", CPU_state->PC);
+		} while (CPU_state->isOn);
 	}
 	catch (std::runtime_error& e) {
 		std::cout << e.what() << std::endl;

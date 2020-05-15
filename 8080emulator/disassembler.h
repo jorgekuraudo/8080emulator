@@ -22,6 +22,8 @@ public:
 
 	void disassemble();
 
+	std::vector<uint8_t> getInstructions();
+
 	static std::vector<std::string> splitString(std::string line, char ch);
 };
 

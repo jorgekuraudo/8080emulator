@@ -23,4 +23,7 @@ struct State8080 {
 
 	//condition flags
 	Flags flag;
+
+	//interruptor
+	bool isOn;
 };
