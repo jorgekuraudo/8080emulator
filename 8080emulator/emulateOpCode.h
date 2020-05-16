@@ -25,10 +25,10 @@ void emulateOpCode(State8080* state) {
 	case 0x2: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x3:		//INX B
 	{
-		uint16_t BC_pair = state->C | (state->B << 8);
+		uint32_t BC_pair = state->C | (state->B << 8);
 		++BC_pair;
 		state->C = BC_pair & 0xff;
-		state->B = (BC_pair >> 8) & 0xff;
+		state->B = (BC_pair & 0xff00) >> 8;
 		break;
 	}
 	case 0x4: std::cout << "Not implemented yet" << std::endl; break;
@@ -48,14 +48,15 @@ void emulateOpCode(State8080* state) {
 	case 0x8: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x9:		//DAD B
 	{
-		uint16_t HL_pair = state->L | (state->H << 8);
-		uint16_t BC_pair = state->C | (state->B << 8);
-		HL_pair += BC_pair;
+		uint32_t HL_pair = state->L | (state->H << 8);
+		uint32_t BC_pair = state->C | (state->B << 8);
+		uint32_t res = HL_pair + BC_pair;
+		
 		//set carry flag:
-		HL_pair & 0x80 != 0 ? state->flag.C = true : state->flag.C = false;
+		state->flag.C = (res & 0xffff0000) != 0;
 		//set H and L registers
-		state->L = HL_pair & 0xff;
-		state->H = (HL_pair >> 8) & 0xff;
+		state->L = res & 0xff;
+		state->H = (res & 0xff00) >> 8;
 		break;
 	}
 	case 0xa: std::cout << "Not implemented yet" << std::endl; break;
@@ -63,7 +64,7 @@ void emulateOpCode(State8080* state) {
 	case 0xc: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xd:		//DCR C
 	{
-		state->C -= 0x01;
+		state->C -= 1;
 		state->C == 0 ? state->flag.Z = true : state->flag.Z = false;
 		state->C % 2 == 0 ? state->flag.P = true : state->flag.P = false;
 		state->C & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
@@ -89,10 +90,10 @@ void emulateOpCode(State8080* state) {
 	case 0x12: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x13:		//INX D
 	{
-		uint16_t DE_pair = state->E | (state->D << 8);
+		uint32_t DE_pair = state->E | (state->D << 8);
 		++DE_pair;
 		state->E = DE_pair & 0xff;
-		state->D = (DE_pair >> 8) & 0xff;
+		state->D = (DE_pair & 0xff00) >> 8;
 		break;
 	}
 	case 0x14: std::cout << "Not implemented yet" << std::endl; break;
@@ -102,19 +103,20 @@ void emulateOpCode(State8080* state) {
 	case 0x18: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x19:		//DAD D
 	{
-		uint16_t HL_pair = state->L | (state->H << 8);
-		uint16_t DE_pair = state->E | (state->D << 8);
-		HL_pair += DE_pair;
+		uint32_t HL_pair = state->L | (state->H << 8);
+		uint32_t DE_pair = state->E | (state->D << 8);
+		uint32_t res = HL_pair + DE_pair;
+
 		//set carry flag:
-		HL_pair & 0x80 != 0 ? state->flag.C = true : state->flag.C = false;
+		state->flag.C = (res & 0xffff0000) != 0;
 		//set H and L registers
-		state->L = HL_pair & 0xff;
-		state->H = (HL_pair >> 8) & 0xff;
+		state->L = res & 0xff;
+		state->H = (res & 0xff00) >> 8;
 		break;
 	}
 	case 0x1a:		//LDAX D
 	{
-		uint8_t address = (state->D << 8) | state->E;
+		uint16_t address = (state->D << 8) | state->E;
 		state->A = state->memory[address];
 		break;
 	}
@@ -132,10 +134,10 @@ void emulateOpCode(State8080* state) {
 	case 0x22: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x23:		//INX H
 	{
-		uint16_t HL_pair = state->L | (state->H << 8);
+		uint32_t HL_pair = state->L | (state->H << 8);
 		++HL_pair;
 		state->L = HL_pair & 0xff;
-		state->H = (HL_pair >> 8) & 0xff;
+		state->H = (HL_pair & 0xff00) >> 8;
 		break;
 	}
 	case 0x24: std::cout << "Not implemented yet" << std::endl; break;
@@ -148,15 +150,13 @@ void emulateOpCode(State8080* state) {
 	case 0x28: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x29:		//DAD H
 	{
-		uint16_t HL_pair = state->L | (state->H << 8);
-		HL_pair += HL_pair;
-		//set carry flag:
-		HL_pair & 0x80 != 0 ? state->flag.C = true : state->flag.C = false;
-		//set H and L registers
-		state->L = HL_pair & 0xff;
-		state->H = (HL_pair >> 8) & 0xff;
-		break;
+		uint32_t HL_pair = (state->H << 8) | state->L;
+		uint32_t res = HL_pair + HL_pair;
+		state->H = (res & 0xff00) >> 8;
+		state->L = res & 0xff;
+		state->flag.C = ((res & 0xffff0000) != 0);
 	}
+	break;
 	case 0x2a: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x2b: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x2c: std::cout << "Not implemented yet" << std::endl; break;
@@ -172,7 +172,7 @@ void emulateOpCode(State8080* state) {
 		break;
 	case 0x32:		//STA
 	{
-		uint8_t address = (opcode[2] << 8) | opcode[1];
+		uint16_t address = (opcode[2] << 8) | opcode[1];
 		state->memory[address] = state->A;
 		state->PC += 2;
 		break;
@@ -182,7 +182,7 @@ void emulateOpCode(State8080* state) {
 	case 0x35: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x36:		//MVI M,D8
 	{
-		uint8_t address = (state->H << 8) | state->L;
+		uint16_t address = (state->H << 8) | state->L;
 		state->memory[address] = opcode[1];
 		state->PC += 1;
 		break;
@@ -192,8 +192,9 @@ void emulateOpCode(State8080* state) {
 	case 0x39: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x3a:		//LDA addr
 	{
-		uint8_t address = (opcode[2] << 8) | opcode[1];
+		uint16_t address = (opcode[2] << 8) | opcode[1];
 		state->A = state->memory[address];
+		state->PC += 2;
 		break;
 	}
 	case 0x3b: std::cout << "Not implemented yet" << std::endl; break;
@@ -228,7 +229,7 @@ void emulateOpCode(State8080* state) {
 	case 0x55: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x56:		//MOV D,M
 	{
-		uint8_t address = (state->H << 8) | state->L;
+		uint16_t address = (state->H << 8) | state->L;
 		state->D = state->memory[address];
 		break;
 	}
@@ -241,7 +242,7 @@ void emulateOpCode(State8080* state) {
 	case 0x5d: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x5e:		//MOV E,M
 	{
-		uint8_t address = (state->H << 8) | state->L;
+		uint16_t address = (state->H << 8) | state->L;
 		state->E = state->memory[address];
 		break;
 	}
@@ -254,7 +255,7 @@ void emulateOpCode(State8080* state) {
 	case 0x65: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x66:		//MOV H,M
 	{
-		uint8_t address = (state->H << 8) | state->L;
+		uint16_t address = (state->H << 8) | state->L;
 		state->H = state->memory[address];
 		break;
 	}
@@ -280,7 +281,7 @@ void emulateOpCode(State8080* state) {
 	case 0x76: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x77:		//MOV M,A
 	{
-		uint8_t address = (state->H << 8) | state->L;
+		uint16_t address = (state->H << 8) | state->L;
 		state->memory[address] = state->A;
 		break;
 	}
@@ -304,7 +305,7 @@ void emulateOpCode(State8080* state) {
 	case 0x7d: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x7e:		//MOV A,M
 	{
-		uint8_t address = (state->H << 8) | state->L;
+		uint16_t address = (state->H << 8) | state->L;
 		state->A = state->memory[address];
 		break;
 	}
@@ -611,7 +612,7 @@ void emulateOpCode(State8080* state) {
 	case 0xfa: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xfb:		//EI
 	{
-		state->isOn = false;
+		//state->isOn = false;
 		break;
 	}
 	case 0xfc: std::cout << "Not implemented yet" << std::endl; break;
