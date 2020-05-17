@@ -2,17 +2,71 @@
 #include <iostream>
 #include "registers.h"
 
+//system interrupt
+void interrupt(State8080* state, int num) {
+	state->memory[state->SP - 1] = (state->PC >> 8) & 0xff;
+	state->memory[state->SP - 2] = state->PC & 0xff;
+	state->SP -= 2;
+	state->PC = 8 * num;
+}
+
+//hardware shift register
+struct shift_register
+{
+	uint16_t status = 0x0000;
+	uint8_t result = 0x00;
+} shift16;
+
+//mIN and mOUT deal with system's I/O
+uint8_t mIN(uint8_t port) {
+	switch (port)
+	{
+	case 1:
+	{
+		break;
+	}
+	case 2:
+	{
+		break;
+	}
+	case 3:
+	{
+		return shift16.result;
+		break;
+	}
+	}
+}
+void mOUT(uint8_t port, uint8_t value) {
+	switch (port)
+	{
+	case 2:
+	{
+		int offset = value & 0x7;
+		shift16.result = (shift16.status << offset) & 0xff00;
+		break;
+	}
+	case 4:
+	{
+		shift16.status >> 8;
+		shift16.status = (shift16.status & 0x00ff) | (value << 8);
+		break;
+	}
+	}
+}
+
 void emulateOpCode(State8080* state) {
 	uint8_t* opcode = &state->memory[state->PC];
 
 
 	//statements for debugging
-	static int count{ 0 };
+	state->count;
 	uint16_t HL_pair = state->L | (state->H << 8);
 	uint16_t BC_pair = state->C | (state->B << 8);
 	uint16_t DE_pair = state->E | (state->D << 8);
-	printf("COUNT: %d\tINST: %x\tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\t\n", count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair);
-
+	//printf("COUNT: %d\tINST: %x\tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\t\n", count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair);
+	/*if (state->count % 1000 == 0) {
+		printf("COUNT: %d\tINST: %x\tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\t\n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair);
+	}*/
 
 	switch (*opcode)
 	{
@@ -512,6 +566,9 @@ void emulateOpCode(State8080* state) {
 	case 0xd2: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xd3:		//OUT D8
 	{
+		uint8_t port = opcode[1];
+		uint8_t value = state->A;
+		mOUT(port, value);
 		state->PC += 1;
 		break;
 	}
@@ -528,7 +585,13 @@ void emulateOpCode(State8080* state) {
 	case 0xd8: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xd9: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xda: std::cout << "Not implemented yet" << std::endl; break;
-	case 0xdb: std::cout << "Not implemented yet" << std::endl; break;
+	case 0xdb:		//IN
+	{
+		uint8_t port = opcode[1];
+		state->A = mIN(port);
+		state->PC += 1;
+	}
+		break;
 	case 0xdc: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xdd: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xde: std::cout << "Not implemented yet" << std::endl; break;
@@ -612,7 +675,7 @@ void emulateOpCode(State8080* state) {
 	case 0xfa: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xfb:		//EI
 	{
-		//state->isOn = false;
+		state->isOn = false;
 		break;
 	}
 	case 0xfc: std::cout << "Not implemented yet" << std::endl; break;
@@ -630,5 +693,5 @@ void emulateOpCode(State8080* state) {
 	case 0xff: std::cout << "Not implemented yet" << std::endl; break;
 	}
 	state->PC += 1;
-	++count;
+	++state->count;
 }

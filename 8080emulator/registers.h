@@ -21,9 +21,15 @@ struct State8080 {
 	//pointer to where the game is loaded
 	uint8_t* memory;
 
+	//video RAM
+	uint8_t* video;
+
 	//condition flags
 	Flags flag;
 
 	//interruptor
 	bool isOn;
+
+	//number of intructions
+	int count;
 };
