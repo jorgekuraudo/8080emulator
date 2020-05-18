@@ -2,6 +2,13 @@
 #include <iostream>
 #include "registers.h"
 
+//data bus
+struct bus
+{
+	uint8_t port1{ 0 };
+	uint8_t port2{ 0 };
+} bus;
+
 //system interrupt
 void interrupt(State8080* state, int num) {
 	state->memory[state->SP - 1] = (state->PC >> 8) & 0xff;
@@ -23,10 +30,12 @@ uint8_t mIN(uint8_t port) {
 	{
 	case 1:
 	{
+		return bus.port1;
 		break;
 	}
 	case 2:
 	{
+		return bus.port2;
 		break;
 	}
 	case 3:
@@ -63,9 +72,14 @@ void emulateOpCode(State8080* state) {
 	uint16_t HL_pair = state->L | (state->H << 8);
 	uint16_t BC_pair = state->C | (state->B << 8);
 	uint16_t DE_pair = state->E | (state->D << 8);
-	//printf("COUNT: %d\tINST: %x\tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\t\n", count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair);
+	printf("COUNT: %d\tINST: %x\tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\t\n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair);
 	/*if (state->count % 1000 == 0) {
 		printf("COUNT: %d\tINST: %x\tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\t\n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair);
+	}*/
+	/*if (state->count > 50000) {
+		state->memory[0x20c0] = 0;
+		printf("COUNT: %d\tINST: %x\tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\t\n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair);
+
 	}*/
 
 	switch (*opcode)
@@ -233,7 +247,16 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0x33: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x34: std::cout << "Not implemented yet" << std::endl; break;
-	case 0x35: std::cout << "Not implemented yet" << std::endl; break;
+	case 0x35:		//DCR M
+	{
+		uint16_t HL_pair = state->L | (state->H << 8);
+		uint8_t res = state->memory[HL_pair] -= 1;
+		res == 0 ? state->flag.Z = true : state->flag.Z = false;
+		res % 2 == 0 ? state->flag.P = true : state->flag.P = false;
+		res & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		break;
+
+	}
 	case 0x36:		//MVI M,D8
 	{
 		uint16_t address = (state->H << 8) | state->L;
@@ -253,7 +276,14 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0x3b: std::cout << "Not implemented yet" << std::endl; break;
 	case 0x3c: std::cout << "Not implemented yet" << std::endl; break;
-	case 0x3d: std::cout << "Not implemented yet" << std::endl; break;
+	case 0x3d: //DCR A
+	{
+		state->A -= 0x01;
+		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
+		state->A % 2 == 0 ? state->flag.P = true : state->flag.P = false;
+		state->A & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		break;
+	}
 	case 0x3e:		//MVI A,D8
 		state->A = opcode[1];
 		state->PC += 1;
@@ -675,7 +705,7 @@ void emulateOpCode(State8080* state) {
 	case 0xfa: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xfb:		//EI
 	{
-		state->isOn = false;
+		state->isOn = true;
 		break;
 	}
 	case 0xfc: std::cout << "Not implemented yet" << std::endl; break;
