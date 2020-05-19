@@ -4,10 +4,12 @@
 #include "registers.h"
 #include "emulateOpCode.h"
 #include "screen.h"
+#include "Timer.h"
 
 int main(int charc, char* args[]) {
 
 	init(); //initialize window
+	Timer* myTimer = new Timer; //initialize a Timer object
 
 	//open the file
 	const char* path = "C:/Users/jmm_1/Desktop/invadersrom/invaders";
@@ -45,19 +47,24 @@ int main(int charc, char* args[]) {
 		});
 
 	//emulation starts here
+	myTimer->start();
 	do {
 		emulateOpCode(CPU_state);
 
-		if (CPU_state->isOn) {
-			if (gCurrentByte == 3000) {
+		if (CPU_state->isOn && myTimer->readTime() > 16) {
+			if (middle) {
 				interrupt(CPU_state, 1);
+				std::cout << "interupt one" << std::endl;
+				middle = false;
 			}
-			if (gCurrentByte == 7000) {
+			if (end) {
 				interrupt(CPU_state, 2);
+				std::cout << "interupt two" << std::endl;
+				end = false;
 			}
+			myTimer->reset();
 		}
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		while (SDL_PollEvent(&e) != 0) {
 			if (e.type == SDL_KEYDOWN) {
 				switch (e.key.keysym.sym)
@@ -72,8 +79,11 @@ int main(int charc, char* args[]) {
 			}
 		}
 	} while (true);
-	screen.join();
 
+	//clean
+	screen.join();
 	close();
+	delete CPU_state;
+	delete myTimer;
 	return 0;
 }

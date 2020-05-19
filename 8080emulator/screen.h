@@ -4,7 +4,8 @@
 #define WINDOW_WIDTH 256
 #define WINDOW_HEIGHT 32*8
 
-int gCurrentByte{ 0 };
+bool middle{ false };
+bool end{ false };
 
 SDL_Event e;
 SDL_Renderer* renderer;
@@ -22,7 +23,10 @@ void updateScreen(uint8_t* screen) {
         for (int j = WINDOW_HEIGHT-1; j >= 0; --j) {
             //read individual bits
             int currentByte = j * WINDOW_WIDTH / 8 + i;
-            gCurrentByte = currentByte;
+            
+            currentByte == 256 * 32 / 2 ? middle = true : middle;
+            currentByte == 256 * 32 ? end = true : end;
+
             uint8_t byte = screen[currentByte];
             for (int k = 7; k >= 0; --k) {
                 if (((byte >> k) & 1) != 0) {

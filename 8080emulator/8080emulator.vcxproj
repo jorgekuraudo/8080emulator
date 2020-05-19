@@ -143,6 +143,7 @@
   <ItemGroup>
     <ClCompile Include="disassembler.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Timer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="condition_flags.h" />
@@ -150,6 +151,7 @@
     <ClInclude Include="emulateOpCode.h" />
     <ClInclude Include="registers.h" />
     <ClInclude Include="screen.h" />
+    <ClInclude Include="Timer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

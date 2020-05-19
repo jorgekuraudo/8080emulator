@@ -1,5 +1,6 @@
 #pragma once
 #include <iostream>
+#include <chrono>
 #include "registers.h"
 
 //data bus
@@ -570,7 +571,17 @@ void emulateOpCode(State8080* state) {
 		//state->PC -= 1;
 		state->SP += 2;
 		break;
-	case 0xca: std::cout << "Not implemented yet" << std::endl; break;
+	case 0xca:		//JZ
+	{
+		if (state->flag.Z) {
+			uint16_t result = opcode[1] | (opcode[2] << 8);
+			state->PC = result - 1;
+		}
+		else {
+			state->PC += 2;
+		}
+		break;
+	}
 	case 0xcb: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xcc: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xcd:		//CALL
@@ -614,7 +625,17 @@ void emulateOpCode(State8080* state) {
 	case 0xd7: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xd8: std::cout << "Not implemented yet" << std::endl; break;
 	case 0xd9: std::cout << "Not implemented yet" << std::endl; break;
-	case 0xda: std::cout << "Not implemented yet" << std::endl; break;
+	case 0xda:		//JC
+	{
+		if (state->flag.C) {
+			uint16_t result = opcode[1] | (opcode[2] << 8);
+			state->PC = result - 1;
+		}
+		else {
+			state->PC += 2;
+		}
+		break;
+	}
 	case 0xdb:		//IN
 	{
 		uint8_t port = opcode[1];
