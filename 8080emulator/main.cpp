@@ -1,5 +1,4 @@
 #include <iostream>
-#include <thread>
 #include "disassembler.h"
 #include "registers.h"
 #include "emulateOpCode.h"
@@ -31,6 +30,17 @@ int main(int charc, char* args[]) {
 	CPU_state->isOn = false;
 	CPU_state->count = 0;
 	CPU_state->PC = 0;
+
+	////Fix the stack pointer from 0x6ad to 0x7ad    
+	//// this 0x06 byte 112 in the code, which is    
+	//// byte 112 + 0x100 = 368 in memory    
+	//CPU_state->memory[368] = 0x7;
+
+	////Skip DAA test    
+	//CPU_state->memory[0x59c] = 0xc3; //JMP    
+	//CPU_state->memory[0x59d] = 0xc2;
+	//CPU_state->memory[0x59e] = 0x05;
+
 	CPU_state->A = 0;
 	CPU_state->B = 0;
 	CPU_state->C = 0;
@@ -39,29 +49,24 @@ int main(int charc, char* args[]) {
 	CPU_state->H = 0;
 	CPU_state->L = 0;
 
-	//set the screen
-	std::thread screen([&]() {
-		while (true) {
-			updateScreen(&CPU_state->memory[0x2400]);
-		}
-		});
-
 	//emulation starts here
 	myTimer->start();
+	int alter{ 0 }; // to alternate between interrupts
 	do {
 		emulateOpCode(CPU_state);
 
-		if (CPU_state->isOn && myTimer->readTime() > 16) {
-			if (middle) {
+		if (CPU_state->isOn && myTimer->readTime() > 100) {
+			if (alter % 2 == 0) {
+				std::cout << "interrupt one" << std::endl;
 				interrupt(CPU_state, 1);
-				std::cout << "interupt one" << std::endl;
-				middle = false;
+				updateUpperHalf(&CPU_state->memory[0x2400]);
 			}
-			if (end) {
+			else {
+				std::cout << "interrupt two" << std::endl;
 				interrupt(CPU_state, 2);
-				std::cout << "interupt two" << std::endl;
-				end = false;
+				updateBottomHalf(&CPU_state->memory[0x2400]);
 			}
+			++alter;
 			myTimer->reset();
 		}
 
@@ -81,7 +86,6 @@ int main(int charc, char* args[]) {
 	} while (true);
 
 	//clean
-	screen.join();
 	close();
 	delete CPU_state;
 	delete myTimer;
