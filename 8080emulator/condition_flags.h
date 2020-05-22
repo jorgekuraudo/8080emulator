@@ -2,9 +2,9 @@
 #include <iostream>
 
 struct Flags {
-	bool Z;
-	bool S;
-	bool P;
-	bool C;
-	bool AC;
+	bool Z{ false };
+	bool S{ false };
+	bool P{ false };
+	bool C{ false };
+	bool AC{ false };
 };

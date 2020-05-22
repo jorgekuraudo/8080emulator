@@ -3,17 +3,20 @@
 #include <chrono>
 #include "registers.h"
 
+//turn on/off debugging
+bool gDebug{ false };
+
 //data bus
 struct bus
 {
-	uint8_t port1{ 0 };
-	uint8_t port2{ 0 };
+	uint8_t port1{ 0x01 };
+	uint8_t port2{ 0x00 };
 } bus;
 
 //system interrupt
 void interrupt(State8080* state, int num) {
-	state->memory[state->SP - 1] = (state->PC >> 8) & 0xff;
-	state->memory[state->SP - 2] = state->PC & 0xff;
+	state->memory[state->SP - 1] = ((state->PC-1) >> 8) & 0xff;
+	state->memory[state->SP - 2] = (state->PC-1) & 0xff;
 	state->SP -= 2;
 	state->PC = (8 * num) & 0xff;
 }
@@ -29,6 +32,7 @@ struct shift_register
 uint8_t mIN(uint8_t port) {
 	switch (port)
 	{
+	default: return 0x00; break;
 	case 1:
 	{
 		return bus.port1;
@@ -46,18 +50,19 @@ uint8_t mIN(uint8_t port) {
 	}
 	}
 }
-void mOUT(uint8_t port, uint8_t value) {
+void mOUT(uint8_t port, uint16_t value) {
 	switch (port)
 	{
 	case 2:
 	{
-		int offset = value & 0x7;
-		shift16.result = (shift16.status << offset) & 0xff00;
+		uint8_t offset = value & 0x7;
+		uint16_t shifted = ((shift16.status << offset) & 0xff00) >> 8;
+		shift16.result = shifted & 0xff;
 		break;
 	}
 	case 4:
 	{
-		shift16.status >> 8;
+		shift16.status = shift16.status >> 8;
 		shift16.status = (shift16.status & 0x00ff) | (value << 8);
 		break;
 	}
@@ -68,7 +73,7 @@ bool parity(uint16_t bytes) {
 	int bit_counter{ 0 };
 	for (int i = 0; i < 16; ++i)
 	{
-		(bytes >> i) & 1 == 1 ? ++bit_counter : bit_counter;
+		((bytes >> i) & 1) == 1 ? ++bit_counter : bit_counter;
 	}
 	if (bit_counter % 2 == 0)
 	{
@@ -81,23 +86,37 @@ bool parity(uint16_t bytes) {
 }
 
 void emulateOpCode(State8080* state) {
+	if (state->PC > 0x4000)
+	{
+		printf("HERE");
+		state->PC -= 0x2000;
+	}
 	uint8_t* opcode = &state->memory[state->PC];
-
+	
 
 	//statements for debugging
 	state->count;
 	uint16_t HL_pair = state->L | (state->H << 8);
 	uint16_t BC_pair = state->C | (state->B << 8);
 	uint16_t DE_pair = state->E | (state->D << 8);
-	printf("CNT: %d\tINS: %x\tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\tA: %x\n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair, state->A);
-	/*if (state->count > 42000) {
-		printf("COUNT: %d\tINST: %x\tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\tA: %x\n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair, state->A);
+	/*printf("CNT: %d\tINS: %x\tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\tA: %x\n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair, state->A);
+	printf("\t\t\t\t\t   SP(M): 0: %x(%x)\t 1: %x(%x)\t 2: %x(%x)\t 3: %x(%x)\n", state->SP, state->memory[state->SP],
+		state->SP + 1, state->memory[state->SP + 1],
+		state->SP + 2, state->memory[state->SP + 2],
+		state->SP + 3, state->memory[state->SP + 3]);*/
+	/*if (state->count % 1000000 == 0) {
+		printf("COUNT: %d\tINST: %x\tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\tA: %x\t ZSPC: %d%d%d%d\n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair, state->A, state->flag.Z, state->flag.S, state->flag.P, state->flag.C);
 	}*/
-	/*if (state->count % 50000 == 0) {
-		state->memory[0x20c0] = 0;
-		printf("COUNT: %d\tINST: %x\tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\t\n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair);
-
+	/*if ((shift16.status != 0 || shift16.result != 0) && (*opcode == 0xdb || *opcode == 0xd3)) {
+		printf("CNT: %d\tINS: %x   \tOPCODE: %x\tA: %x\t%x\t\t%x\n", state->count, (int)state->PC, *opcode, state->A, shift16.status, shift16.result);
 	}*/
+	/*if (state->PC = 0x1439) {
+		printf("CNT: %d\tINS: %x   \tOPCODE: %x\tA: %x\t%x\t\t%x\n", state->count, (int)state->PC, *opcode, state->A, shift16.status, shift16.result);
+	}*/
+	if (gDebug)
+	{
+		printf("COUNT: %d\tINST: %x   \tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\tA: %x\t ZSPC: %d%d%d%d\n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair, state->A, state->flag.Z, state->flag.S, state->flag.P, state->flag.C);
+	}
 
 	switch (*opcode)
 	{
@@ -125,7 +144,7 @@ void emulateOpCode(State8080* state) {
 		state->B += 0x01;
 		state->B == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->B) ? state->flag.P = true : state->flag.P = false;
-		state->B & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->B & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0x5:		//DCR B
@@ -133,20 +152,18 @@ void emulateOpCode(State8080* state) {
 		state->B -= 0x01;
 		state->B == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->B) ? state->flag.P = true : state->flag.P = false;
-		state->B & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->B & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0x6:		//MVI B,D8
 		state->B = opcode[1];
 		state->PC += 1;
 		break;
-	case 0x7:		//RCL
+	case 0x7:		//RLC
 	{
-		uint8_t before = state->A;
-		uint8_t after = state->A << 1;
-		after = after | (before & 0x80) & 1;
-		state->flag.C = before & 0x80;
-		state->A = after;
+		uint8_t x = state->A;
+		state->A = ((x & 0x80) >> 7) | (x << 1);
+		(x & 0x80) != 0 ? state->flag.C = true : state->flag.C = false;
 		break;
 
 	}
@@ -183,7 +200,7 @@ void emulateOpCode(State8080* state) {
 		state->C += 0x01;
 		state->C == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->C) ? state->flag.P = true : state->flag.P = false;
-		state->C & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->C & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0xd:		//DCR C
@@ -191,7 +208,7 @@ void emulateOpCode(State8080* state) {
 		state->C -= 1;
 		state->C == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->C) ? state->flag.P = true : state->flag.P = false;
-		state->C & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->C & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0xe:		//MVI C,D8
@@ -229,7 +246,7 @@ void emulateOpCode(State8080* state) {
 		state->D += 0x01;
 		state->D == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->D) ? state->flag.P = true : state->flag.P = false;
-		state->D & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->D & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0x15:		//DCR D
@@ -237,7 +254,7 @@ void emulateOpCode(State8080* state) {
 		state->D -= 0x01;
 		state->D == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->D) ? state->flag.P = true : state->flag.P = false;
-		state->D & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->D & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0x16:		//MVI D,D8
@@ -287,7 +304,7 @@ void emulateOpCode(State8080* state) {
 		state->E += 0x01;
 		state->E == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->E) ? state->flag.P = true : state->flag.P = false;
-		state->E & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->E & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0x1d:		//DCR E
@@ -295,7 +312,7 @@ void emulateOpCode(State8080* state) {
 		state->E -= 0x01;
 		state->E == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->E) ? state->flag.P = true : state->flag.P = false;
-		state->E & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->E & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0x1e:		//MVI E,D8
@@ -339,7 +356,7 @@ void emulateOpCode(State8080* state) {
 		state->H += 0x01;
 		state->H == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->H) ? state->flag.P = true : state->flag.P = false;
-		state->H & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->H & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0x25:		//DCR H
@@ -347,7 +364,7 @@ void emulateOpCode(State8080* state) {
 		state->H -= 0x01;
 		state->H == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->H) ? state->flag.P = true : state->flag.P = false;
-		state->H & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->H & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0x26:		//MVI H,D8
@@ -386,15 +403,15 @@ void emulateOpCode(State8080* state) {
 		state->L += 0x01;
 		state->L == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->L) ? state->flag.P = true : state->flag.P = false;
-		state->L & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->L & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0x2d:		//DCR L
 	{
-		state->L += 0x01;
+		state->L -= 0x01;
 		state->L == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->L) ? state->flag.P = true : state->flag.P = false;
-		state->L & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->L & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0x2e:		//MVI L,D8
@@ -407,6 +424,7 @@ void emulateOpCode(State8080* state) {
 	case 0x30: std::cout << "0x30 -" << std::endl; break;
 	case 0x31:		//LXI SP, D16
 		state->SP = opcode[1] | (opcode[2] << 8);
+		//state->SP += 0x100;
 		state->PC += 2;
 		break;
 	case 0x32:		//STA
@@ -424,20 +442,22 @@ void emulateOpCode(State8080* state) {
 	case 0x34:		//INR M
 	{
 		uint16_t HL_pair = state->L | (state->H << 8);
-		uint8_t res = state->memory[HL_pair] += 1;
+		uint8_t res = state->memory[HL_pair] + 1;
 		res == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(res) ? state->flag.P = true : state->flag.P = false;
-		res & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(res & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		state->memory[HL_pair] = res;
 		break;
 
 	}
 	case 0x35:		//DCR M
 	{
 		uint16_t HL_pair = state->L | (state->H << 8);
-		uint8_t res = state->memory[HL_pair] -= 1;
+		uint8_t res = state->memory[HL_pair] - 1;
 		res == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(res) ? state->flag.P = true : state->flag.P = false;
-		res & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(res & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		state->memory[HL_pair] = res;
 		break;
 
 	}
@@ -478,7 +498,7 @@ void emulateOpCode(State8080* state) {
 		state->A += 0x01;
 		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		state->A & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0x3d: //DCR A
@@ -486,7 +506,7 @@ void emulateOpCode(State8080* state) {
 		state->A -= 0x01;
 		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		state->A & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		break;
 	}
 	case 0x3e:		//MVI A,D8
@@ -833,9 +853,9 @@ void emulateOpCode(State8080* state) {
 		uint16_t result = (uint16_t)state->A + (uint16_t)state->B;
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -852,11 +872,11 @@ void emulateOpCode(State8080* state) {
 		uint16_t result = (uint16_t)state->A + (uint16_t)state->C;
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
+		(result > 0xff) ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 		//Auxiliary carry flag
@@ -871,9 +891,9 @@ void emulateOpCode(State8080* state) {
 		uint16_t result = (uint16_t)state->A + (uint16_t)state->D;
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -890,9 +910,9 @@ void emulateOpCode(State8080* state) {
 		uint16_t result = (uint16_t)state->A + (uint16_t)state->E;
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -909,9 +929,9 @@ void emulateOpCode(State8080* state) {
 		uint16_t result = (uint16_t)state->A + (uint16_t)state->H;
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -928,9 +948,9 @@ void emulateOpCode(State8080* state) {
 		uint16_t result = (uint16_t)state->A + (uint16_t)state->L;
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -947,9 +967,9 @@ void emulateOpCode(State8080* state) {
 		uint16_t result = (uint16_t)state->A + (uint16_t)state->memory[HL_pair];
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -966,9 +986,9 @@ void emulateOpCode(State8080* state) {
 		uint16_t result = (uint16_t)state->A + (uint16_t)state->A;
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -985,9 +1005,9 @@ void emulateOpCode(State8080* state) {
 		uint16_t result = (uint16_t)state->A + (uint16_t)state->B + 0x01; //added bit from carry
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -1000,12 +1020,12 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0x89:		//ADC C
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->C + 0x01; //added bit from carry
+		uint16_t result = (uint16_t)state->A + (uint16_t)state->C + state->flag.C; //added bit from carry
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -1018,14 +1038,14 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0x8a:		//ADC D
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->D + 0x01; //added bit from carry
+		uint16_t result = (uint16_t)state->A + (uint16_t)state->D + state->flag.C; //added bit from carry
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
+		(result > 0xff) ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 		//Auxiliary carry flag
@@ -1036,12 +1056,12 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0x8b:		//ADC E
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->E + 0x01; //added bit from carry
+		uint16_t result = (uint16_t)state->A + (uint16_t)state->E + state->flag.C; //added bit from carry
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -1054,12 +1074,12 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0x8c:		//ADC H
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->H + 0x01; //added bit from carry
+		uint16_t result = (uint16_t)state->A + (uint16_t)state->H + state->flag.C; //added bit from carry
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -1072,12 +1092,12 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0x8d:		//ADC L
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->L + 0x01; //added bit from carry
+		uint16_t result = (uint16_t)state->A + (uint16_t)state->L + state->flag.C; //added bit from carry
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -1090,14 +1110,14 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0x8e:		//ADC M
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->memory[HL_pair] +0x01; //added bit from carry
+		uint16_t result = (uint16_t)state->A + (uint16_t)state->memory[HL_pair] + state->flag.C; //added bit from carry
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
+		(result > 0xff) ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 		//Auxiliary carry flag
@@ -1108,12 +1128,12 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0x8f:		//ADC A
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->A + 0x01; //added bit from carry
+		uint16_t result = (uint16_t)state->A + (uint16_t)state->A + state->flag.C; //added bit from carry
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -1127,8 +1147,8 @@ void emulateOpCode(State8080* state) {
 	case 0x90:		//SUB B
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->B;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1138,8 +1158,8 @@ void emulateOpCode(State8080* state) {
 	case 0x91:		//SUB C
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->C;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1149,8 +1169,8 @@ void emulateOpCode(State8080* state) {
 	case 0x92:		//SUB D
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->D;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1160,8 +1180,8 @@ void emulateOpCode(State8080* state) {
 	case 0x93:		//SUB E
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->E;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1171,8 +1191,8 @@ void emulateOpCode(State8080* state) {
 	case 0x94:		//SUB H
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->H;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1182,8 +1202,8 @@ void emulateOpCode(State8080* state) {
 	case 0x95:		//SUB L
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->L;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1193,8 +1213,8 @@ void emulateOpCode(State8080* state) {
 	case 0x96:		//SUB M
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->memory[HL_pair];
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1204,8 +1224,8 @@ void emulateOpCode(State8080* state) {
 	case 0x97:		//SUB A
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->A;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1215,8 +1235,8 @@ void emulateOpCode(State8080* state) {
 	case 0x98:		//SBB B
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->B - state->flag.C;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1226,8 +1246,8 @@ void emulateOpCode(State8080* state) {
 	case 0x99:		//SBB C
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->C - state->flag.C;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1237,8 +1257,8 @@ void emulateOpCode(State8080* state) {
 	case 0x9a:		//SBB D
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->D - state->flag.C;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1248,8 +1268,8 @@ void emulateOpCode(State8080* state) {
 	case 0x9b:		//SBB E
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->E - state->flag.C;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1259,8 +1279,8 @@ void emulateOpCode(State8080* state) {
 	case 0x9c:		//SBB H
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->H - state->flag.C;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1270,8 +1290,8 @@ void emulateOpCode(State8080* state) {
 	case 0x9d:		//SBB L
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->L - state->flag.C;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1281,7 +1301,7 @@ void emulateOpCode(State8080* state) {
 	case 0x9e:		//SBB M
 	{
 		uint16_t HL_pair = state->L | (state->H << 8);
-		state->A -= state->memory[HL_pair] - state->flag.C;
+		state->A = state->A - state->memory[HL_pair] - state->flag.C;
 		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(state->A) ? state->flag.P = true : state->flag.P = false;
 		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
@@ -1291,8 +1311,8 @@ void emulateOpCode(State8080* state) {
 	case 0x9f:		//SBB A
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->A - state->flag.C;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
@@ -1526,8 +1546,8 @@ void emulateOpCode(State8080* state) {
 	case 0xb8:		//CMP B
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->B;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 		break;
@@ -1535,8 +1555,8 @@ void emulateOpCode(State8080* state) {
 	case 0xb9:		//CMP C
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->C;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 		break;
@@ -1544,8 +1564,8 @@ void emulateOpCode(State8080* state) {
 	case 0xba:		//CMP D
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->D;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 		break;
@@ -1553,8 +1573,8 @@ void emulateOpCode(State8080* state) {
 	case 0xbb:		//CMP E
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->E;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 		break;
@@ -1562,8 +1582,8 @@ void emulateOpCode(State8080* state) {
 	case 0xbc:		//CMP H
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->H;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 		break;
@@ -1571,8 +1591,8 @@ void emulateOpCode(State8080* state) {
 	case 0xbd:		//CMP L
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->L;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 		break;
@@ -1580,8 +1600,8 @@ void emulateOpCode(State8080* state) {
 	case 0xbe:		//CMP M
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->memory[HL_pair];
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 		break;
@@ -1589,8 +1609,8 @@ void emulateOpCode(State8080* state) {
 	case 0xbf:		//CMP A
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)state->A;
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 		break;
@@ -1657,11 +1677,11 @@ void emulateOpCode(State8080* state) {
 		uint16_t result = (uint16_t)state->A + (uint16_t)opcode[1];
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
+		(result > 0xff) ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 		//Auxiliary carry flag
@@ -1727,7 +1747,9 @@ void emulateOpCode(State8080* state) {
 				uint16_t offset = (state->D << 8) | (state->E);
 				unsigned char* str = &state->memory[offset + 3];  //skip the prefix bytes    
 				while (*str != '$')
+				{
 					printf("%c", *str++);
+				}
 				printf("\n");
 			}
 			else if (state->C == 2)
@@ -1744,20 +1766,20 @@ void emulateOpCode(State8080* state) {
 	{
 		uint16_t next = state->PC + 2;
 		state->memory[state->SP - 1] = (next >> 8) & 0xff;
-		state->memory[state->SP - 2] = next & 0xff;
+		state->memory[state->SP - 2] = (next & 0xff);
 		state->SP -= 2;
-		state->PC = (opcode[2] << 8) | (opcode[1] & 0xff);
+		state->PC = (opcode[2] << 8) | (opcode[1]);
 		state->PC -= 1;
 		break;
 	}
 	case 0xce:		//ACI byte
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)opcode[1] + state->C;
+		uint16_t result = (uint16_t)state->A + (uint16_t)opcode[1] + state->flag.C;
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -1805,7 +1827,7 @@ void emulateOpCode(State8080* state) {
 	case 0xd3:		//OUT D8
 	{
 		uint8_t port = opcode[1];
-		uint8_t value = state->A;
+		uint16_t value = state->A;
 		mOUT(port, value);
 		state->PC += 1;
 		break;
@@ -1837,12 +1859,13 @@ void emulateOpCode(State8080* state) {
 	case 0xd6:		//SUI D8
 	{
 		uint16_t result = (uint16_t)state->A - (uint16_t)opcode[1];
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
 
 		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		state->PC += 1;
 		break;
 	}
 	case 0xd7:		//RST 2
@@ -1902,9 +1925,9 @@ void emulateOpCode(State8080* state) {
 		uint16_t result = (uint16_t)state->A - (uint16_t)opcode[1] - state->flag.C;
 		//flags:
 		//Zero flag
-		result & 0xff == 0 ? state->flag.Z = true : state->flag.Z = false;
+		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
 		//Sign flag
-		result & 0x80 != 0 ? state->flag.S = true : state->flag.S = false;
+		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		//Carry flag
 		result > 0xff ? state->flag.C = true : state->flag.C = false;
 		//Parity flag
@@ -1988,6 +2011,7 @@ void emulateOpCode(State8080* state) {
 		res == 0 ? state->flag.Z = true : state->flag.Z = false;
 		parity(res) ? state->flag.P = true : state->flag.P = false;
 		(res & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		state->A = res;
 		state->PC += 1;
 		break;
 	}
@@ -2118,10 +2142,10 @@ void emulateOpCode(State8080* state) {
 	{
 		state->memory[state->SP - 1] = state->A;
 		uint8_t psw = (state->flag.Z |
-			state->flag.S << 1 |
-			state->flag.P << 2 |
-			state->flag.C << 3 |
-			state->flag.AC << 4);
+			(state->flag.S << 1) |
+			(state->flag.P << 2) |
+			(state->flag.C << 3) |
+			(state->flag.AC << 4));
 		state->memory[state->SP - 2] = psw;
 		state->SP = state->SP - 2;
 		break;
@@ -2193,7 +2217,7 @@ void emulateOpCode(State8080* state) {
 	case 0xfe:		//CPI D8
 	{
 		uint8_t result = state->A - opcode[1];
-		result == 0 ? state->flag.Z = true : state->flag.Z = false;
+		state->A == opcode[1] ? state->flag.Z = true : state->flag.Z = false;
 		parity(result) ? state->flag.P = true : state->flag.P = false;
 		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 		state->A < opcode[1] ? state->flag.C = true : state->flag.C = false;
@@ -2205,7 +2229,8 @@ void emulateOpCode(State8080* state) {
 		state->memory[state->SP - 1] = (state->PC >> 8) & 0xff;
 		state->memory[state->SP - 2] = state->PC & 0xff;
 		state->SP -= 2;
-		state->PC = 0x38-0x01;
+		state->PC = (8 * 7) & 0xff;
+		state->PC -= 1;
 		break;
 	}
 	}
