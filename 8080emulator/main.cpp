@@ -1,6 +1,6 @@
 #include <iostream>
 #include "disassembler.h"
-#include "registers.h"
+#include "cpu.h"
 #include "emulateOpCode.h"
 #include "screen.h"
 #include "Timer.h"
@@ -11,27 +11,20 @@ int main(int charc, char* args[]) {
 	Timer* myTimer = new Timer; //initialize a Timer object
 
 	//open the file
-	const char* path = "C:/Users/jmm_1/Desktop/invadersrom/invaders";
+	const char* path = "C:/Users/jmm_1/Desktop/invadersrom/invaders.rom";
 
 	disassembler dis(path);
 	//dis.disassemble();
 	std::vector<uint8_t> codes = dis.getInstructions();
 
 	//RAM
-	for (int i = 0; i < 0x4000; ++i) {
+	for (int i = 0x1fff; i < 0x10000; ++i) {
 		codes.push_back(0x00);
 	}
 
-
-	//create a model of the CPU
-	State8080* CPU_state = new State8080;
-
 	//initialize some CPU parameters	
-	CPU_state->memory = &codes[0];
-	CPU_state->isOn = false;
-	CPU_state->count = 0;
-	CPU_state->PC = 0;
-
+	state->memory = &codes[0];
+	state->isOn = false;
 
 	//////offset for debugging
 	//for (int off = 0; off < 0x100; ++off) {
@@ -48,39 +41,40 @@ int main(int charc, char* args[]) {
 	//CPU_state->memory[0x59d] = 0xc2;
 	//CPU_state->memory[0x59e] = 0x05;
 
+	/*CPU_state->memory[0x528] = 0xc3;
+	CPU_state->memory[0x529] = 0x36;
+	CPU_state->memory[0x530] = 0x5;*/
+
+
 	////Fix the first instruction to be JMP 0x100    
 	//CPU_state->memory[0] = 0xc3;
 	//CPU_state->memory[1] = 0;
 	//CPU_state->memory[2] = 0x01;
 
-	CPU_state->A = 0;
-	CPU_state->B = 0;
-	CPU_state->C = 0;
-	CPU_state->D = 0;
-	CPU_state->E = 0;
-	CPU_state->H = 0;
-	CPU_state->L = 0;
-
 	//emulation starts here
 	myTimer->start();
 	int alter{ 0 }; // to alternate between interrupts
-	do {
-		emulateOpCode(CPU_state);
+	while(true) {
+		emulateOpCode(state);
+		
 
-		if (CPU_state->isOn && (myTimer->readTime() > 16)) {
+		if ((state->isOn) && (myTimer->readTime() > 16)) {
 			if (alter % 2 == 0) {
-				//std::cout << "===========interrupt one===========" << std::endl;
-				updateUpperHalf(&CPU_state->memory[0x2400]);
-				interrupt(CPU_state, 1);
+				logFile << "===========interrupt one===========\n";
+				updateUpperHalf(&state->memory[0x2400]);
+				interrupt(state, 1);
+				state->isOn = false; //disable interrupt
 			}
 			else {
-				//std::cout << "===========interrupt two===========" << std::endl;
-				updateBottomHalf(&CPU_state->memory[0x2400]);
-				interrupt(CPU_state, 2);
+				logFile << "===========interrupt two===========\n";
+				updateBottomHalf(&state->memory[0x2400]);
+				interrupt(state, 2);
+				state->isOn = false; //disable interrupt
 			}
 			++alter;
 			myTimer->reset();
 		}
+		
 
 		while (SDL_PollEvent(&e) != 0) {
 			if (e.type == SDL_KEYDOWN) {
@@ -107,11 +101,11 @@ int main(int charc, char* args[]) {
 				}
 			}
 		}
-	} while (true);
+	}
 
 	//clean
 	close();
-	delete CPU_state;
+	logFile.close();
 	delete myTimer;
 	return 0;
 }

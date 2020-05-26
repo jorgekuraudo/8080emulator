@@ -15,36 +15,12 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="disassembler.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Timer.cpp">
+    <ClCompile Include="tests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="disassembler.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="condition_flags.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="emulateOpCode.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="screen.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Timer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="instructions.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="cpu.h">
+    <ClInclude Include="..\..\..\..\Desktop\invadersrom\catch.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
