@@ -19,7 +19,7 @@ struct State8080 {
 
 	//function to make pairs
 	uint16_t pair(const uint8_t& reg1, const uint8_t& reg2) {
-		return ((uint16_t)reg2 | ((uint16_t)reg1 << 8));
+		return (((uint16_t)reg1 << 8) | (uint16_t)reg2);
 	}
 	
 	//stack pointer

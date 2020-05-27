@@ -10,83 +10,12 @@ std::fstream logFile("C:/Users/jmm_1/Desktop/invadersrom/log.txt", std::ios::out
 //turn on/off debugging
 bool gDebug{ false };
 
-//data bus
-struct bus
-{
-	uint8_t port1{ 0x01 };
-	uint8_t port2{ 0x00 };
-} bus;
-
 //system interrupt
 void interrupt(State8080* state, int num) {
 	state->memory[state->SP - 1] = ((state->PC - 1) >> 8) & 0xff;
 	state->memory[state->SP - 2] = (state->PC - 1) & 0xff;
 	state->SP -= 2;
 	state->PC = (8 * num);
-}
-
-//hardware shift register
-struct shift_register
-{
-	uint16_t status = 0x0000;
-	uint8_t result = 0x00;
-} shift16;
-
-//mIN and mOUT deal with system's I/O
-uint8_t mIN(uint8_t port) {
-	switch (port)
-	{
-	default: return 0x00; break;
-	case 1:
-	{
-		return bus.port1;
-		break;
-	}
-	case 2:
-	{
-		return bus.port2;
-		break;
-	}
-	case 3:
-	{
-		return shift16.result;
-		break;
-	}
-	}
-}
-void mOUT(uint8_t port, uint16_t value) {
-	switch (port)
-	{
-	case 2:
-	{
-		uint8_t offset = 8 - value;
-		uint16_t shifted = ((shift16.status >> offset));
-		shift16.result = shifted & 0xff;
-		break;
-	}
-	case 4:
-	{
-		shift16.status = shift16.status >> 8;
-		shift16.status = (shift16.status & 0x00ff) | (value << 8);
-		break;
-	}
-	}
-}
-
-bool parity(uint16_t bytes) {
-	int bit_counter{ 0 };
-	for (int i = 0; i < 16; ++i)
-	{
-		((bytes >> i) & 1) == 1 ? ++bit_counter : bit_counter;
-	}
-	if (bit_counter % 2 == 0)
-	{
-		return true;
-	}
-	else
-	{
-		return false;
-	}
 }
 
 void emulateOpCode(State8080* state) {
@@ -160,31 +89,22 @@ void emulateOpCode(State8080* state) {
 		break;
 	case 0x2:	//	STAX B
 	{
-		state->memory[state->BC_pair] = state->A;
+		STAX(state->BC_pair);
 		break;
 	}
 	case 0x3:		//INX B
 	{
-		uint32_t BC_pair = state->C | (state->B << 8);
-		++BC_pair;
-		state->C = BC_pair & 0xff;
-		state->B = (BC_pair & 0xff00) >> 8;
+		INX(state->B, state->C);
 		break;
 	}
 	case 0x4:		//INR B
 	{
-		state->B += 0x01;
-		state->B == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->B) ? state->flag.P = true : state->flag.P = false;
-		(state->B & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		INR(state->B);
 		break;
 	}
 	case 0x5:		//DCR B
 	{
-		state->B -= 0x01;
-		state->B == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->B) ? state->flag.P = true : state->flag.P = false;
-		(state->B & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		DCR(state->B);
 		break;
 	}
 	case 0x6:		//MVI B,D8
@@ -202,45 +122,27 @@ void emulateOpCode(State8080* state) {
 	case 0x8: std::cout << "0x8 -" << std::endl; break;
 	case 0x9:		//DAD B
 	{
-		uint32_t HL_pair = state->L | (state->H << 8);
-		uint32_t BC_pair = state->C | (state->B << 8);
-		uint32_t res = HL_pair + BC_pair;
-		
-		//set carry flag:
-		state->flag.C = (res & 0xffff0000) != 0;
-		//set H and L registers
-		state->L = res & 0xff;
-		state->H = (res & 0xff00) >> 8;
+		DAD(state->B, state->C);
 		break;
 	}
 	case 0xa:		//LDAX B
 	{
-		uint16_t address = state->C | (state->B << 8);
-		state->A = state->memory[address];
+		LDAX(state->BC_pair);
 		break;
 	}
 	case 0xb:		//DCX B
 	{
-		uint32_t BC_pair = state->C | (state->B << 8);
-		--BC_pair;
-		state->C = BC_pair & 0xff;
-		state->B = (BC_pair & 0xff00) >> 8;
+		DCX(state->B, state->C);
 		break;
 	}
 	case 0xc:		//INR C
 	{
-		state->C += 0x01;
-		state->C == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->C) ? state->flag.P = true : state->flag.P = false;
-		(state->C & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		INR(state->C);
 		break;
 	}
 	case 0xd:		//DCR C
 	{
-		state->C -= 1;
-		state->C == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->C) ? state->flag.P = true : state->flag.P = false;
-		(state->C & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		DCR(state->C);
 		break;
 	}
 	case 0xe:		//MVI C,D8
@@ -261,31 +163,22 @@ void emulateOpCode(State8080* state) {
 		break;
 	case 0x12:	//	STAX D
 	{
-		state->memory[state->DE_pair] = state->A;
+		STAX(state->DE_pair);
 		break;
 	}
 	case 0x13:		//INX D
 	{
-		uint32_t DE_pair = state->E | (state->D << 8);
-		++DE_pair;
-		state->E = DE_pair & 0xff;
-		state->D = (DE_pair & 0xff00) >> 8;
+		INX(state->D, state->E);
 		break;
 	}
 	case 0x14:		//INR D
 	{
-		state->D += 0x01;
-		state->D == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->D) ? state->flag.P = true : state->flag.P = false;
-		(state->D & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		INR(state->D);
 		break;
 	}
 	case 0x15:		//DCR D
 	{
-		state->D -= 0x01;
-		state->D == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->D) ? state->flag.P = true : state->flag.P = false;
-		(state->D & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		DCR(state->D);
 		break;
 	}
 	case 0x16:		//MVI D,D8
@@ -305,45 +198,27 @@ void emulateOpCode(State8080* state) {
 	case 0x18: std::cout << "0x18 -" << std::endl; break;
 	case 0x19:		//DAD D
 	{
-		uint32_t HL_pair = state->L | (state->H << 8);
-		uint32_t DE_pair = state->E | (state->D << 8);
-		uint32_t res = HL_pair + DE_pair;
-
-		//set carry flag:
-		state->flag.C = (res & 0xffff0000) != 0;
-		//set H and L registers
-		state->L = res & 0xff;
-		state->H = (res & 0xff00) >> 8;
+		DAD(state->D, state->E);
 		break;
 	}
 	case 0x1a:		//LDAX D
 	{
-		uint16_t address = state->E | (state->D << 8);
-		state->A = state->memory[address];
+		LDAX(state->DE_pair);
 		break;
 	}
 	case 0x1b:		//DCX D
 	{
-		uint32_t DE_pair = state->E | (state->D << 8);
-		--DE_pair;
-		state->E = DE_pair & 0xff;
-		state->D = (DE_pair & 0xff00) >> 8;
+		DCX(state->D, state->E);
 		break;
 	}
 	case 0x1c:		//INR E
 	{
-		state->E += 0x01;
-		state->E == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->E) ? state->flag.P = true : state->flag.P = false;
-		(state->E & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		INR(state->E);
 		break;
 	}
 	case 0x1d:		//DCR E
 	{
-		state->E -= 0x01;
-		state->E == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->E) ? state->flag.P = true : state->flag.P = false;
-		(state->E & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		DCR(state->E);
 		break;
 	}
 	case 0x1e:		//MVI E,D8
@@ -367,34 +242,23 @@ void emulateOpCode(State8080* state) {
 		break;
 	case 0x22:		//SHLD adr
 	{
-		uint16_t address = opcode[1] | (opcode[2] << 8);
-		state->memory[address] = state->L;
-		state->memory[address + 1] = state->H;
+		SHLD(opcode[1], opcode[2]);
 		state->PC += 2;
 		break;
 	}
 	case 0x23:		//INX H
 	{
-		uint32_t HL_pair = state->L | (state->H << 8);
-		HL_pair += 1;
-		state->L = HL_pair & 0xff;
-		state->H = (HL_pair & 0xff00) >> 8;
+		INX(state->H, state->L);
 		break;
 	}
 	case 0x24:		//INR H
 	{
-		state->H += 0x01;
-		state->H == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->H) ? state->flag.P = true : state->flag.P = false;
-		(state->H & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		INR(state->H);
 		break;
 	}
 	case 0x25:		//DCR H
 	{
-		state->H -= 0x01;
-		state->H == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->H) ? state->flag.P = true : state->flag.P = false;
-		(state->H & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		DCR(state->H);
 		break;
 	}
 	case 0x26:		//MVI H,D8
@@ -416,43 +280,28 @@ void emulateOpCode(State8080* state) {
 		break;
 	case 0x29:		//DAD H
 	{
-		uint32_t HL_pair = (state->H << 8) | state->L;
-		uint32_t res = HL_pair + HL_pair;
-		state->H = (res & 0xff00) >> 8;
-		state->L = res & 0xff;
-		state->flag.C = ((res & 0xffff0000) != 0);
+		DAD(state->H, state->L);
 	}
 	break;
 	case 0x2a:		//LHLD adr
 	{
-		uint16_t address = opcode[1] | (opcode[2] << 8);
-		state->L = state->memory[address];
-		state->H = state->memory[address + 1];
+		LHLD(opcode[1], opcode[2]);
 		state->PC += 2;
 		break;
 	}
 	case 0x2b:		//DCX H
 	{
-		uint32_t HL_pair = state->L | (state->H << 8);
-		--HL_pair;
-		state->L = HL_pair & 0xff;
-		state->H = (HL_pair & 0xff00) >> 8;
+		DCX(state->H, state->L);
 		break;
 	}
 	case 0x2c:		//INR L
 	{
-		state->L += 0x01;
-		state->L == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->L) ? state->flag.P = true : state->flag.P = false;
-		(state->L & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		INR(state->L);
 		break;
 	}
 	case 0x2d:		//DCR L
 	{
-		state->L -= 0x01;
-		state->L == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->L) ? state->flag.P = true : state->flag.P = false;
-		(state->L & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		DCR(state->L);
 		break;
 	}
 	case 0x2e:		//MVI L,D8
@@ -480,23 +329,13 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0x34:		//INR M
 	{
-		uint16_t HL_pair = state->L | (state->H << 8);
-		uint8_t res = state->memory[HL_pair] + 1;
-		res == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(res) ? state->flag.P = true : state->flag.P = false;
-		(res & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->memory[HL_pair] = res;
+		INR(state->memory[state->HL_pair]);
 		break;
 
 	}
 	case 0x35:		//DCR M
 	{
-		uint16_t HL_pair = state->L | (state->H << 8);
-		uint8_t res = state->memory[HL_pair] - 1;
-		res == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(res) ? state->flag.P = true : state->flag.P = false;
-		(res & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->memory[HL_pair] = res;
+		DCR(state->memory[state->HL_pair]);
 		break;
 
 	}
@@ -514,9 +353,7 @@ void emulateOpCode(State8080* state) {
 	case 0x38: std::cout << "0x38 -" << std::endl; break;
 	case 0x39:		//DAD SP
 	{
-		uint32_t result = state->HL_pair + state->SP;
-		(result > 0xffff) ? state->flag.C = true : state->flag.C = false;
-		state->HL_pair = result & 0xffff;
+		DAD((state->SP >> 8) & 0xff, state->SP & 0xff);
 		break;
 	}
 	case 0x3a:		//LDA addr
@@ -532,18 +369,12 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0x3c: //INR A
 	{
-		state->A += 0x01;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		INR(state->A);
 		break;
 	}
 	case 0x3d: //DCR A
 	{
-		state->A -= 0x01;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
+		DCR(state->A);
 		break;
 	}
 	case 0x3e:		//MVI A,D8
@@ -876,697 +707,281 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0x80:		//ADD B
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->B;
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
-
+		ADD(state->B);
 		break;
 	}
 	case 0x81:		//ADD C
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->C;
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		(result > 0xff) ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
-
+		ADD(state->C);
 		break;
 	}
 	case 0x82:		//ADD D
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->D;
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
-
+		ADD(state->D);
 		break;
 	}
 	case 0x83:		//ADD E
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->E;
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
-
+		ADD(state->E);
 		break;
 	}
 	case 0x84:		//ADD H
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->H;
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
-
+		ADD(state->H);
 		break;
 	}
 	case 0x85:		//ADD L
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->L;
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
-
+		ADD(state->L);
 		break;
 	}
 	case 0x86:		//ADD M
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->memory[state->HL_pair];
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
-
+		ADD(state->memory[state->HL_pair]);
 		break;
 	}
 	case 0x87:		//ADD A
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->A;
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
-
+		ADD(state->A);
 		break;
 	}
 	case 0x88:		//ADC B
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->B + 0x01; //added bit from carry
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		ADC(state->B);
 		break;
 	}
 	case 0x89:		//ADC C
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->C + state->flag.C; //added bit from carry
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
-		break;
+		ADC(state->C);
 	}
 	case 0x8a:		//ADC D
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->D + state->flag.C; //added bit from carry
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		(result > 0xff) ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		ADC(state->D);
 		break;
 	}
 	case 0x8b:		//ADC E
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->E + state->flag.C; //added bit from carry
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		ADC(state->E);
 		break;
 	}
 	case 0x8c:		//ADC H
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->H + state->flag.C; //added bit from carry
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		ADC(state->H);
 		break;
 	}
 	case 0x8d:		//ADC L
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->L + state->flag.C; //added bit from carry
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		ADC(state->L);
 		break;
 	}
 	case 0x8e:		//ADC M
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->memory[state->HL_pair] + state->flag.C; //added bit from carry
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		(result > 0xff) ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		ADC(state->memory[state->HL_pair]);
 		break;
 	}
 	case 0x8f:		//ADC A
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)state->A + state->flag.C; //added bit from carry
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		ADC(state->A);
 		break;
 	}
 	case 0x90:		//SUB B
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->B;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SUB(state->B);
 		break;
 	}
 	case 0x91:		//SUB C
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->C;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SUB(state->C);
 		break;
 	}
 	case 0x92:		//SUB D
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->D;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SUB(state->D);
 		break;
 	}
 	case 0x93:		//SUB E
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->E;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SUB(state->E);
 		break;
 	}
 	case 0x94:		//SUB H
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->H;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SUB(state->H);
 		break;
 	}
 	case 0x95:		//SUB L
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->L;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SUB(state->L);
 		break;
 	}
 	case 0x96:		//SUB M
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->memory[state->HL_pair];
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SUB(state->memory[state->HL_pair]);
 		break;
 	}
 	case 0x97:		//SUB A
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->A;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SUB(state->A);
 		break;
 	}
 	case 0x98:		//SBB B
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->B - state->flag.C;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SBB(state->B);
 		break;
 	}
 	case 0x99:		//SBB C
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->C - state->flag.C;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SBB(state->C);
 		break;
 	}
 	case 0x9a:		//SBB D
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->D - state->flag.C;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SBB(state->D);
 		break;
 	}
 	case 0x9b:		//SBB E
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->E - state->flag.C;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SBB(state->E);
 		break;
 	}
 	case 0x9c:		//SBB H
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->H - state->flag.C;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SBB(state->H);
 		break;
 	}
 	case 0x9d:		//SBB L
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->L - state->flag.C;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SBB(state->L);
 		break;
 	}
 	case 0x9e:		//SBB M
 	{
-		uint16_t HL_pair = state->L | (state->H << 8);
-		state->A = state->A - state->memory[HL_pair] - state->flag.C;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->A > 0xff ? state->flag.C = true : state->flag.C = false;
+		SBB(state->memory[state->HL_pair]);
 		break;
 	}
 	case 0x9f:		//SBB A
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->A - state->flag.C;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SBB(state->A);
 		break;
 	}
 	case 0xa0:		//ANA B
 	{
-		state->A = state->A & state->B;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		ANA(state->B);
 		break;
 	}
 	case 0xa1:		//ANA C
 	{
-		state->A = state->A & state->C;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		ANA(state->C);
 		break;
 	}
 	case 0xa2:		//ANA D
 	{
-		state->A = state->A & state->D;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		ANA(state->D);
 		break;
 	}
 	case 0xa3:		//ANA E
 	{
-		state->A = state->A & state->E;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		ANA(state->E);
 		break;
 	}
 	case 0xa4:		//ANA H
 	{
-		state->A = state->A & state->H;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		ANA(state->H);
 		break;
 	}
 	case 0xa5:		//ANA L
 	{
-		state->A = state->A & state->L;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		ANA(state->L);
 		break;
 	}
-	case 0xa6:		//ANA A
+	case 0xa6:		//ANA M
 	{
-		state->A = state->A & state->memory[state->HL_pair];
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		ANA(state->memory[state->HL_pair]);
 		break;
 	}
 	case 0xa7:		//ANA A
 	{
-		state->A = state->A & state->A;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		ANA(state->A);
 		break;
 	}
 	case 0xa8:		//XRA B
 	{
-		state->A = state->A ^ state->B;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
-		state->flag.AC = false;
+		XRA(state->B);
 		break;
 	}
 	case 0xa9:		//XRA C
 	{
-		state->A = state->A ^ state->C;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
-		state->flag.AC = false;
+		XRA(state->C);
 		break;
 	}
 	case 0xaa:		//XRA D
 	{
-		state->A = state->A ^ state->D;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
-		state->flag.AC = false;
+		XRA(state->D);
 		break;
 	}
 	case 0xab:		//XRA E
 	{
-		state->A = state->A ^ state->E;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
-		state->flag.AC = false;
+		XRA(state->E);
 		break;
 	}
 	case 0xac:		//XRA H
 	{
-		state->A = state->A ^ state->H;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
-		state->flag.AC = false;
+		XRA(state->H);
 		break;
 	}
 	case 0xad:		//XRA L
 	{
-		state->A = state->A ^ state->L;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
-		state->flag.AC = false;
+		XRA(state->L);
 		break;
 	}
 	case 0xae:		//XRA M
 	{
-		state->A = state->A ^ state->memory[state->HL_pair];
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
-		state->flag.AC = false;
+		XRA(state->memory[state->HL_pair]);
 		break;
 	}
 	case 0xaf:		//XRA A
 	{
-		state->A = state->A ^ state->A;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
-		state->flag.AC = false;
+		XRA(state->A);
 		break;
 	}
 	case 0xb0:		//ORA B
 	{
-		state->A = state->A | state->B;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		ORA(state->B);
 		break;
 	}
 	case 0xb1:		//ORA C
 	{
-		state->A = state->A | state->C;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		XRA(state->C);
 		break;
 	}
 	case 0xb2:		//ORA D
 	{
-		state->A = state->A | state->D;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		XRA(state->D);
 		break;
 	}
 	case 0xb3:		//ORA E
 	{
-		state->A = state->A | state->E;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		XRA(state->E);
 		break;
 	}
 	case 0xb4:		//ORA H
 	{
-		state->A = state->A | state->H;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		XRA(state->H);
 		break;
 	}
 	case 0xb5:		//ORA L
 	{
-		state->A = state->A | state->L;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		XRA(state->L);
 		break;
 	}
 	case 0xb6:		//ORA M
 	{
-		state->A = state->A | state->memory[state->HL_pair];
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		XRA(state->memory[state->HL_pair]);
 		break;
 	}
 	case 0xb7:		//ORA A
 	{
-		state->A = state->A | state->A;
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		XRA(state->A);
 		break;
 	}
 	case 0xb8:		//CMP B
@@ -1700,20 +1115,7 @@ void emulateOpCode(State8080* state) {
 	break;
 	case 0xc6:		//ADI byte
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)opcode[1];
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		(result > 0xff) ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		ADD(opcode[1]);
 		state->PC += 1; //advance one extra byte
 		break;
 	}
@@ -1807,20 +1209,7 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0xce:		//ACI byte
 	{
-		uint16_t result = (uint16_t)state->A + (uint16_t)opcode[1] + state->flag.C;
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		ADC(opcode[1]);
 		state->PC += 1; //advance one extra byte
 		break;
 	}
@@ -1891,13 +1280,7 @@ void emulateOpCode(State8080* state) {
 	break;
 	case 0xd6:		//SUI D8
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)opcode[1];
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SUB(opcode[1]);
 		state->PC += 1;
 		break;
 	}
@@ -1930,8 +1313,7 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0xdb:		//IN
 	{
-		uint8_t port = opcode[1];
-		state->A = mIN(port);
+		mIN(opcode[1]);
 		state->PC += 1;
 	}
 		break;
@@ -1955,20 +1337,7 @@ void emulateOpCode(State8080* state) {
 	case 0xdd: std::cout << "0xdd -" << std::endl; break;
 	case 0xde:		//SBI byte
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)opcode[1] - state->flag.C;
-		//flags:
-		//Zero flag
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		//Sign flag
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		//Carry flag
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		//Parity flag
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
-		//Auxiliary carry flag
-		//don't implement yet
-
-		state->A = result & 0xff; //add result to accumulator (only the 8 low bits)
+		SBB(opcode[1]);
 		state->PC += 1; //advance one extra byte
 		break;
 	}
@@ -2037,14 +1406,7 @@ void emulateOpCode(State8080* state) {
 	break;
 	case 0xe6:		//ANI D8
 	{
-		uint8_t res = opcode[1] & state->A;
-		//clear AC and C flags
-		state->flag.AC = false;
-		state->flag.C = false;
-		res == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(res) ? state->flag.P = true : state->flag.P = false;
-		(res & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->A = res;
+		ANA(opcode[1]);
 		state->PC += 1;
 		break;
 	}
@@ -2083,8 +1445,7 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0xeb:		//XCHG
 	{
-		std::swap(state->H, state->D);
-		std::swap(state->L, state->E);
+		XCHG();
 		break;
 	}
 	case 0xec:		//CPE addr
@@ -2105,13 +1466,9 @@ void emulateOpCode(State8080* state) {
 		break;
 	}
 	case 0xed: std::cout << "0xed -" << std::endl; break;
-	case 0xee:		//XORI B8
+	case 0xee:		//XRI B8
 	{
-		state->A = state->A ^ opcode[1];
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		XRA(opcode[1]);
 		state->PC++;
 		break;
 	}
@@ -2185,11 +1542,7 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0xf6:		//ORI B8
 	{
-		state->A = state->A | opcode[1];
-		state->A == 0 ? state->flag.Z = true : state->flag.Z = false;
-		parity(state->A) ? state->flag.P = true : state->flag.P = false;
-		(state->A & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->flag.C = false;
+		ORA(opcode[1]);
 		state->PC++;
 		break;
 	}

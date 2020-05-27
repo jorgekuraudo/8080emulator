@@ -150,6 +150,7 @@
     <ClInclude Include="condition_flags.h" />
     <ClInclude Include="disassembler.h" />
     <ClInclude Include="emulateOpCode.h" />
+    <ClInclude Include="inout.h" />
     <ClInclude Include="instructions.h" />
     <ClInclude Include="cpu.h" />
     <ClInclude Include="screen.h" />
