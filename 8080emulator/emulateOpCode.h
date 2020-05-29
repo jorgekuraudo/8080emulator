@@ -7,13 +7,10 @@
 
 std::fstream logFile("C:/Users/jmm_1/Desktop/invadersrom/log.txt", std::ios::out);
 
-//turn on/off debugging
-bool gDebug{ false };
-
 //system interrupt
 void interrupt(State8080* state, int num) {
-	state->memory[state->SP - 1] = ((state->PC - 1) >> 8) & 0xff;
-	state->memory[state->SP - 2] = (state->PC - 1) & 0xff;
+	state->memory[state->SP - 1] = ((state->PC) >> 8) & 0xff;
+	state->memory[state->SP - 2] = (state->PC) & 0xff;
 	state->SP -= 2;
 	state->PC = (8 * num);
 }
@@ -34,7 +31,7 @@ void emulateOpCode(State8080* state) {
 	state->BC_pair = state->pair(state->B, state->C);
 	state->DE_pair = state->pair(state->D, state->E);
 	
-	//printf( "C: %d\tI: %x  \tO: %x \tSP: %x \tBC: %x \tDE: %x \tHL: %x \tA: %x\t ZSPC: %d%d%d%d  %x \n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair, state->A, state->flag.Z, state->flag.S, state->flag.P, state->flag.C, state->memory[0xe602]);
+	//printf( "C: %d\tI: %x  \tO: %x \tSP: %x \tBC: %x \tDE: %x \tHL: %x \tA: %x\t ZSPC: %d%d%d%d (HL)%x \n", state->count, (int)state->PC, *opcode, state->SP, state->BC_pair, state->DE_pair, state->HL_pair, state->A, state->flag.Z, state->flag.S, state->flag.P, state->flag.C, state->memory[state->HL_pair]);
 	/*printf("SP(M): 0: %x(%x) 1: %x(%x) 2: %x(%x) 3: %x(%x)\n", state->SP, state->memory[state->SP],
 		state->SP + 1, state->memory[state->SP + 1],
 		state->SP + 2, state->memory[state->SP + 2],
@@ -68,17 +65,16 @@ void emulateOpCode(State8080* state) {
 	//		state->SP + 3, state->memory[state->SP + 3]);*/
 	//}
 
-	//logFile << std::dec << "count: " << state->count
-	//	<< "\taddr: " << std::hex << state->PC
-	//	<< "   \tOPCODE: " << (int)*opcode
-	//	<< "\tSP: " << state->SP
-	//	<< "   \tBC: " << BC_pair
-	//	<< "   \tDE: " << DE_pair
-	//	<< "   \tHL: " << HL_pair
-	//	<< "   \tA: " << (int)state->A
-	//	<< "\tZSPC: " << state->flag.Z << state->flag.S << state->flag.P << state->flag.C
-	//	/*<< "  \t(HL): " << (int)state->memory[HL_pair]*/
-	//	<< "\n";
+	/*logFile << std::dec << "count: " << state->count
+		<< "\taddr: " << std::hex << state->PC
+		<< "   \tOPCODE: " << (int)*opcode
+		<< "\tSP: " << state->SP
+		<< "   \tBC: " << state->BC_pair
+		<< "   \tDE: " << state->DE_pair
+		<< "   \tHL: " << state->HL_pair
+		<< "   \tA: " << (int)state->A
+		<< "\tZSPC: " << state->flag.Z << state->flag.S << state->flag.P << state->flag.C
+		<< "\n";*/
 
 	switch (*opcode)
 	{
@@ -113,9 +109,7 @@ void emulateOpCode(State8080* state) {
 		break;
 	case 0x7:		//RLC
 	{
-		uint8_t x = state->A;
-		state->A = ((x & 0x80) >> 7) | (x << 1);
-		(x & 0x80) != 0 ? state->flag.C = true : state->flag.C = false;
+		RLC();
 		break;
 
 	}
@@ -151,9 +145,7 @@ void emulateOpCode(State8080* state) {
 		break;
 	case 0xf:		//RRC
 	{
-		uint8_t x = state->A;
-		state->A = ((x & 1) << 7) | (x >> 1);
-		state->flag.C = (1 == (x & 1));
+		RRC();
 		break;
 	}
 	case 0x10: std::cout << "0x10 -" << std::endl; break;
@@ -187,11 +179,7 @@ void emulateOpCode(State8080* state) {
 		break;
 	case 0x17:		//RAL
 	{
-		uint8_t before = state->A;
-		uint8_t after = state->A << 1;
-		after = after | (state->flag.C) & 1;
-		state->flag.C = before & 0x80;
-		state->A = after;
+		RAL();
 		break;
 
 	}
@@ -225,13 +213,9 @@ void emulateOpCode(State8080* state) {
 		MOV(state->E, opcode[1]);
 		state->PC += 1;
 		break;
-	case 0x1f:		//RCL
+	case 0x1f:		//RAR
 	{
-		uint8_t before = state->A;
-		uint8_t after = state->A >> 1;
-		after = after | (before & 0x80) & 0x80;
-		state->flag.C = before & 0x1;
-		state->A = after;
+		RAR();
 		break;
 
 	}
@@ -281,8 +265,8 @@ void emulateOpCode(State8080* state) {
 	case 0x29:		//DAD H
 	{
 		DAD(state->H, state->L);
+		break;
 	}
-	break;
 	case 0x2a:		//LHLD adr
 	{
 		LHLD(opcode[1], opcode[2]);
@@ -309,7 +293,7 @@ void emulateOpCode(State8080* state) {
 		state->PC += 1;
 		break;
 	case 0x2f:		//CMA
-		state->A = ~state->A;
+		CMA();
 		break;
 	case 0x30: std::cout << "0x30 -" << std::endl; break;
 	case 0x31:		//LXI SP, D16
@@ -383,7 +367,7 @@ void emulateOpCode(State8080* state) {
 		break;
 	case 0x3f:		//CMC
 	{
-		state->flag.C = false;
+		CMC();
 		break;
 	}
 	case 0x40:		//MOV B,B
@@ -753,6 +737,7 @@ void emulateOpCode(State8080* state) {
 	case 0x89:		//ADC C
 	{
 		ADC(state->C);
+		break;
 	}
 	case 0x8a:		//ADC D
 	{
@@ -951,166 +936,111 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0xb1:		//ORA C
 	{
-		XRA(state->C);
+		ORA(state->C);
 		break;
 	}
 	case 0xb2:		//ORA D
 	{
-		XRA(state->D);
+		ORA(state->D);
 		break;
 	}
 	case 0xb3:		//ORA E
 	{
-		XRA(state->E);
+		ORA(state->E);
 		break;
 	}
 	case 0xb4:		//ORA H
 	{
-		XRA(state->H);
+		ORA(state->H);
 		break;
 	}
 	case 0xb5:		//ORA L
 	{
-		XRA(state->L);
+		ORA(state->L);
 		break;
 	}
 	case 0xb6:		//ORA M
 	{
-		XRA(state->memory[state->HL_pair]);
+		ORA(state->memory[state->HL_pair]);
 		break;
 	}
 	case 0xb7:		//ORA A
 	{
-		XRA(state->A);
+		ORA(state->A);
 		break;
 	}
 	case 0xb8:		//CMP B
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->B;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
+		CMP(state->B);
 		break;
 	}
 	case 0xb9:		//CMP C
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->C;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
+		CMP(state->C);
 		break;
 	}
 	case 0xba:		//CMP D
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->D;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
+		CMP(state->D);
 		break;
 	}
 	case 0xbb:		//CMP E
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->E;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
+		CMP(state->E);
 		break;
 	}
 	case 0xbc:		//CMP H
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->H;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
+		CMP(state->H);
 		break;
 	}
 	case 0xbd:		//CMP L
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->L;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
+		CMP(state->L);
 		break;
 	}
 	case 0xbe:		//CMP M
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->memory[state->HL_pair];
-		(state->A == state->memory[state->HL_pair]) ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		(state->A < state->memory[state->HL_pair]) ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
+		CMP(state->memory[state->HL_pair]);
 		break;
 	}
 	case 0xbf:		//CMP A
 	{
-		uint16_t result = (uint16_t)state->A - (uint16_t)state->A;
-		(result & 0xff) == 0 ? state->flag.Z = true : state->flag.Z = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		result > 0xff ? state->flag.C = true : state->flag.C = false;
-		parity(result & 0xff) ? state->flag.P = true : state->flag.P = false;
+		CMP(state->A);
 		break;
 	}
 	case 0xc0:		//RNZ
 	{
-		if (!state->flag.Z) {
-			state->PC = state->memory[state->SP] | (state->memory[state->SP + 1] << 8);
-			state->SP += 2;
-		}
+		RNZ();
+		state->PC -= 1;
 		break;
 	}
 	case 0xc1:		//POP B
 	{
-		state->C = state->memory[state->SP];
-		state->B = state->memory[state->SP + 1];
-		state->SP += 2;
+		POP(state->B, state->C);
 	}
 		break;
 	case 0xc2:		//JNZ
 	{
-		if (!state->flag.Z) {
-			uint16_t result = opcode[1] | (opcode[2] << 8);
-			state->PC = result - 1;
-		}
-		else {
-			state->PC += 2;
-		}
+		JNZ(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xc3:		//JMP
 	{
-		//compute the address
-		uint16_t result = opcode[1] | (opcode[2] << 8);
-		state->PC = result - 1;
+		JMP(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xc4:		//CNZ addr
 	{
-		if (!state->flag.Z)
-		{
-			uint16_t next = state->PC + 2;
-			state->memory[state->SP - 1] = (next >> 8) & 0xff;
-			state->memory[state->SP - 2] = next & 0xff;
-			state->SP -= 2;
-			state->PC = (opcode[2] << 8) | (opcode[1] & 0xff);
-			state->PC -= 1;
-		}
-		else
-		{
-			state->PC += 2;
-		}
+		CNZ(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xc5:		//PUSH B
 	{
-		state->memory[state->SP - 1] = state->B;
-		state->memory[state->SP - 2] = state->C;
-		state->SP -= 2;
+		PUSH(state->B, state->C);
 	}
 	break;
 	case 0xc6:		//ADI byte
@@ -1120,91 +1050,68 @@ void emulateOpCode(State8080* state) {
 		break;
 	}
 	case 0xc7:		//RST 0
-		state->memory[state->SP - 1] = (state->PC >> 8) & 0xff;
-		state->memory[state->SP - 2] = state->PC & 0xff;
-		state->SP -= 2;
-		state->PC = (8 * 0) & 0xff;
+		RST(0);
 		state->PC -= 1;
 		break;
 	case 0xc8:		//RZ
 	{
-		if (state->flag.Z) {
-			state->PC = state->memory[state->SP] | (state->memory[state->SP + 1] << 8);
-			state->SP += 2;
-		}
+		RZ();
+		state->PC -= 1;
 		break;
 	}
 	case 0xc9:		//RET
-		state->PC = state->memory[state->SP] | (state->memory[state->SP + 1] << 8);
-		state->SP += 2;
+		RET();
+		state->PC -= 1;
 		break;
 	case 0xca:		//JZ
 	{
-		if (state->flag.Z) {
-			uint16_t result = opcode[1] | (opcode[2] << 8);
-			state->PC = result - 1;
-		}
-		else {
-			state->PC += 2;
-		}
+		JZ(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xcb: std::cout << "0xcb -" << std::endl; break;
 	case 0xcc:		//CZ addr
 	{
-		if (state->flag.Z)
-		{
-			uint16_t next = state->PC + 2;
-			state->memory[state->SP - 1] = (next >> 8) & 0xff;
-			state->memory[state->SP - 2] = next & 0xff;
-			state->SP -= 2;
-			state->PC = (opcode[2] << 8) | (opcode[1] & 0xff);
-			state->PC -= 1;
-		}
-		else
-		{
-			state->PC += 2;
-		}
+		CZ(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xcd:		//CALL
 	{
-		//if (5 == ((opcode[2] << 8) | opcode[1]))
-		//{
-		//	if (state->C == 9)
-		//	{
-		//		uint16_t offset = (state->D << 8) | (state->E);
-		//		unsigned char* str = &state->memory[offset];  //skip the prefix bytes    
-		//		while (*str != '$')
-		//		{
-		//			printf("%c", *str++);
-		//		}
-		//		printf("\n");
-		//		state->PC += 2;
-		//		break;
-		//	}
-		//	else if (state->C == 2)
-		//	{
-		//		//saw this in the inspected code, never saw it called    
-		//		printf("print char routine called\n");
-		//	}
-		//	state->PC += 2;
-		//	break;
-		//}
-		//else if (0 == ((opcode[2] << 8) | opcode[1]))
-		//{
-		//	exit(0);
-		//	printf("smth happened here\n");
-		//	state->PC += 2;
-		//	break;
-		//}
-		//else
-		uint16_t next = state->PC + 2;
-		state->memory[state->SP - 1] = (next >> 8) & 0xff;
-		state->memory[state->SP - 2] = (next & 0xff);
-		state->SP -= 2;
-		state->PC = (opcode[2] << 8) | (opcode[1]);
-		state->PC -= 1;
+		if (5 == ((opcode[2] << 8) | opcode[1]))
+		{
+			if (state->C == 9)
+			{
+				uint16_t offset = (state->D << 8) | (state->E);
+				unsigned char* str = &state->memory[offset];  //skip the prefix bytes    
+				while (*str != '$')
+				{
+					printf("%c", *str++);
+				}
+				printf("\n");
+				state->PC += 2;
+				break;
+			}
+			else if (state->C == 2)
+			{
+				//saw this in the inspected code, never saw it called    
+				printf("print char routine called\n");
+			}
+			state->PC += 2;
+			break;
+		}
+		else if (0 == ((opcode[2] << 8) | opcode[1]))
+		{
+			exit(0);
+			printf("smth happened here\n");
+			state->PC += 2;
+			break;
+		}
+		else {
+			CALL(opcode[1], opcode[2]);
+			state->PC -= 1;
+		}
+		
 		break;
 	}
 	case 0xce:		//ACI byte
@@ -1214,36 +1121,24 @@ void emulateOpCode(State8080* state) {
 		break;
 	}
 	case 0xcf:		//RST 1
-		state->memory[state->SP - 1] = (state->PC >> 8) & 0xff;
-		state->memory[state->SP - 2] = state->PC & 0xff;
-		state->SP -= 2;
-		state->PC = (8 * 1) & 0xff;
+		RST(1);
 		state->PC -= 1;
 		break;
 	case 0xd0:		//RNC
 	{
-		if (!state->flag.C) {
-			state->PC = state->memory[state->SP] | (state->memory[state->SP + 1] << 8);
-			state->SP += 2;
-		}
+		RNC();
+		state->PC -= 1;
 		break;
 	}
 	case 0xd1:		//POP D
 	{
-		state->E = state->memory[state->SP];
-		state->D = state->memory[state->SP + 1];
-		state->SP += 2;
+		POP(state->D, state->E);
 	}
 	break;
 	case 0xd2:		//JNC
 	{
-		if (!state->flag.C) {
-			uint16_t result = opcode[1] | (opcode[2] << 8);
-			state->PC = result - 1;
-		}
-		else {
-			state->PC += 2;
-		}
+		JNC(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xd3:		//OUT D8
@@ -1256,26 +1151,13 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0xd4:		//CNC addr
 	{
-		if (!state->flag.C)
-		{
-			uint16_t next = state->PC + 2;
-			state->memory[state->SP - 1] = (next >> 8) & 0xff;
-			state->memory[state->SP - 2] = next & 0xff;
-			state->SP -= 2;
-			state->PC = (opcode[2] << 8) | (opcode[1] & 0xff);
-			state->PC -= 1;
-		}
-		else
-		{
-			state->PC += 2;
-		}
+		CNC(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xd5:		//PUSH D
 	{
-		state->memory[state->SP - 1] = state->D;
-		state->memory[state->SP - 2] = state->E;
-		state->SP -= 2;
+		PUSH(state->D, state->E);
 	}
 	break;
 	case 0xd6:		//SUI D8
@@ -1285,30 +1167,20 @@ void emulateOpCode(State8080* state) {
 		break;
 	}
 	case 0xd7:		//RST 2
-		state->memory[state->SP - 1] = (state->PC >> 8) & 0xff;
-		state->memory[state->SP - 2] = state->PC & 0xff;
-		state->SP -= 2;
-		state->PC = (8 * 2) & 0xff;
+		RST(2);
 		state->PC -= 1;
 		break;
 	case 0xd8:		//RC
 	{
-		if (state->flag.C) {
-			state->PC = state->memory[state->SP] | (state->memory[state->SP + 1] << 8);
-			state->SP += 2;
-		}
+		RC();
+		state->PC -= 1;
 		break;
 	}
 	case 0xd9: std::cout << "0xd9 -" << std::endl; break;
 	case 0xda:		//JC
 	{
-		if (state->flag.C) {
-			uint16_t result = opcode[1] | (opcode[2] << 8);
-			state->PC = result - 1;
-		}
-		else {
-			state->PC += 2;
-		}
+		JC(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xdb:		//IN
@@ -1319,19 +1191,8 @@ void emulateOpCode(State8080* state) {
 		break;
 	case 0xdc:		//CC addr
 	{
-		if (state->flag.C)
-		{
-			uint16_t next = state->PC + 2;
-			state->memory[state->SP - 1] = (next >> 8) & 0xff;
-			state->memory[state->SP - 2] = next & 0xff;
-			state->SP -= 2;
-			state->PC = (opcode[2] << 8) | (opcode[1] & 0xff);
-			state->PC -= 1;
-		}
-		else
-		{
-			state->PC += 2;
-		}
+		CC(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xdd: std::cout << "0xdd -" << std::endl; break;
@@ -1342,66 +1203,40 @@ void emulateOpCode(State8080* state) {
 		break;
 	}
 	case 0xdf:		//RST 3
-		state->memory[state->SP - 1] = (state->PC >> 8) & 0xff;
-		state->memory[state->SP - 2] = state->PC & 0xff;
-		state->SP -= 2;
-		state->PC = (8 * 3) & 0xff;
+		RST(3);
 		state->PC -= 1;
 		break;
 	case 0xe0:		//RPO
 	{
-		if (!state->flag.P) {
-			state->PC = state->memory[state->SP] | (state->memory[state->SP + 1] << 8);
-			state->SP += 2;
-		}
+		RPO();
+		state->PC -= 1;
 		break;
 	}
 	case 0xe1:		//POP H
 	{
-		state->L = state->memory[state->SP];
-		state->H = state->memory[state->SP + 1];
-		state->SP += 2;
+		POP(state->H, state->L);
 	}
 	break;
 	case 0xe2:		//JPO
 	{
-		if (!state->flag.P) {
-			uint16_t result = opcode[1] | (opcode[2] << 8);
-			state->PC = result - 1;
-		}
-		else {
-			state->PC += 2;
-		}
+		JPO(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xe3:		//XTHL
 	{
-		std::swap(state->L, state->memory[state->SP]);
-		std::swap(state->H, state->memory[state->SP + 1]);
+		XTHL();
 		break;
 	}
 	case 0xe4:		//CPO addr
 	{
-		if (!state->flag.P)
-		{
-			uint16_t next = state->PC + 2;
-			state->memory[state->SP - 1] = (next >> 8) & 0xff;
-			state->memory[state->SP - 2] = next & 0xff;
-			state->SP -= 2;
-			state->PC = (opcode[2] << 8) | (opcode[1] & 0xff);
-			state->PC -= 1;
-		}
-		else
-		{
-			state->PC += 2;
-		}
+		CPO(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xe5:		//PUSH H
 	{
-		state->memory[state->SP - 1] = state->H;
-		state->memory[state->SP - 2] = state->L;
-		state->SP -= 2;
+		PUSH(state->H, state->L);
 	}
 	break;
 	case 0xe6:		//ANI D8
@@ -1411,36 +1246,25 @@ void emulateOpCode(State8080* state) {
 		break;
 	}
 	case 0xe7:		//RST 4
-		state->memory[state->SP - 1] = (state->PC >> 8) & 0xff;
-		state->memory[state->SP - 2] = state->PC & 0xff;
-		state->SP -= 2;
-		state->PC = (8 * 4) & 0xff;
+		RST(4);
 		state->PC -= 1;
 		break;
 	case 0xe8:		//RPE
 	{
-		if (state->flag.P) {
-			state->PC = state->memory[state->SP] | (state->memory[state->SP + 1] << 8);
-			state->SP += 2;
-		}
+		RPE();
+		state->PC -= 1;
 		break;
 	}
 	case 0xe9:		//PCHL
 	{
-		uint16_t address = (state->H << 8) | state->L;
-		state->PC = address;
+		PCHL();
 		state->PC -= 1;
 		break;
 	}
 	case 0xea:		//JPE
 	{
-		if (state->flag.P) {
-			uint16_t result = opcode[1] | (opcode[2] << 8);
-			state->PC = result - 1;
-		}
-		else {
-			state->PC += 2;
-		}
+		JPE(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xeb:		//XCHG
@@ -1450,19 +1274,8 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0xec:		//CPE addr
 	{
-		if (state->flag.P)
-		{
-			uint16_t next = state->PC + 2;
-			state->memory[state->SP - 1] = (next >> 8) & 0xff;
-			state->memory[state->SP - 2] = next & 0xff;
-			state->SP -= 2;
-			state->PC = (opcode[2] << 8) | (opcode[1] & 0xff);
-			state->PC -= 1;
-		}
-		else
-		{
-			state->PC += 2;
-		}
+		CPE(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xed: std::cout << "0xed -" << std::endl; break;
@@ -1473,71 +1286,36 @@ void emulateOpCode(State8080* state) {
 		break;
 	}
 	case 0xef:		//RST 5
-		state->memory[state->SP - 1] = (state->PC >> 8) & 0xff;
-		state->memory[state->SP - 2] = state->PC & 0xff;
-		state->SP -= 2;
-		state->PC = (8 * 5) & 0xff;
+		RST(5);
 		state->PC -= 1;
 		break;
 	case 0xf0:		//RP
 	{
-		if (!state->flag.S) {
-			state->PC = state->memory[state->SP] | (state->memory[state->SP + 1] << 8);
-			state->SP += 2;
-		}
+		RP();
+		state->PC -= 1;
 		break;
 	}
 	case 0xf1:		//POP PSW
 	{
-		state->A = state->memory[state->SP + 1];
-		uint8_t psw = state->memory[state->SP];
-		state->flag.Z = (0x01 == (psw & 0x01));
-		state->flag.S = (0x02 == (psw & 0x02));
-		state->flag.P = (0x04 == (psw & 0x04));
-		state->flag.C = (0x05 == (psw & 0x08));
-		state->flag.AC = (0x10 == (psw & 0x10));
-		state->SP += 2;
+		POP_PSW();
 		break;
 	}
 	case 0xf2:		//JP
 	{
-		if (!state->flag.S) {
-			uint16_t result = opcode[1] | (opcode[2] << 8);
-			state->PC = result - 1;
-		}
-		else {
-			state->PC += 2;
-		}
+		JP(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xf3: std::cout << "0xf3 DI special" << std::endl; break;
 	case 0xf4:		//CP addr
 	{
-		if (!state->flag.S)
-		{
-			uint16_t next = state->PC + 2;
-			state->memory[state->SP - 1] = (next >> 8) & 0xff;
-			state->memory[state->SP - 2] = next & 0xff;
-			state->SP -= 2;
-			state->PC = (opcode[2] << 8) | (opcode[1] & 0xff);
-			state->PC -= 1;
-		}
-		else
-		{
-			state->PC += 2;
-		}
+		CP(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xf5:		//PUSH PSW
 	{
-		state->memory[state->SP - 1] = state->A;
-		uint8_t psw = (state->flag.Z |
-			(state->flag.S << 1) |
-			(state->flag.P << 2) |
-			(state->flag.C << 3) |
-			(state->flag.AC << 4));
-		state->memory[state->SP - 2] = psw;
-		state->SP = state->SP - 2;
+		PUSH_PSW();
 		break;
 	}
 	case 0xf6:		//ORI B8
@@ -1547,34 +1325,22 @@ void emulateOpCode(State8080* state) {
 		break;
 	}
 	case 0xf7:		//RST 6
-		state->memory[state->SP - 1] = (state->PC >> 8) & 0xff;
-		state->memory[state->SP - 2] = state->PC & 0xff;
-		state->SP -= 2;
-		state->PC = (8 * 6) & 0xff;
+		RST(6);
 		state->PC -= 1;
 		break;
 	case 0xf8:		//RM
 	{
-		if (state->flag.S) {
-			state->PC = state->memory[state->SP] | (state->memory[state->SP + 1] << 8);
-			state->SP += 2;
-		}
+		RM();
+		state->PC -= 1;
 		break;
 	}
 	case 0xf9:		//SPHL
-		state->SP = state->HL_pair;
+		SPHL();
 		break;
 	case 0xfa:		//JM addr
 	{
-		if (state->flag.S)
-		{
-			state->PC = (opcode[2] << 8) | (opcode[1] & 0xff);
-			state->PC -= 1;
-		}
-		else
-		{
-			state->PC += 2;
-		}
+		JM(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xfb:		//EI
@@ -1584,38 +1350,20 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0xfc:		//CM addr
 	{
-		if (state->flag.S)
-		{
-			uint16_t next = state->PC + 2;
-			state->memory[state->SP - 1] = (next >> 8) & 0xff;
-			state->memory[state->SP - 2] = next & 0xff;
-			state->SP -= 2;
-			state->PC = (opcode[2] << 8) | (opcode[1] & 0xff);
-			state->PC -= 1;
-		}
-		else
-		{
-			state->PC += 2;
-		}
+		CM(opcode[1], opcode[2]);
+		state->PC -= 1;
 		break;
 	}
 	case 0xfd: std::cout << "0xfd -" << std::endl; break;
 	case 0xfe:		//CPI D8
 	{
-		uint8_t result = state->A - opcode[1];
-		state->A == opcode[1] ? state->flag.Z = true : state->flag.Z = false;
-		parity(result) ? state->flag.P = true : state->flag.P = false;
-		(result & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
-		state->A < opcode[1] ? state->flag.C = true : state->flag.C = false;
+		CMP(opcode[1]);
 		state->PC += 1;
 		break;
 	}
 	case 0xff:		//RST 7
 	{
-		state->memory[state->SP - 1] = (state->PC >> 8) & 0xff;
-		state->memory[state->SP - 2] = state->PC & 0xff;
-		state->SP -= 2;
-		state->PC = (8 * 7) & 0xff;
+		RST(7);
 		state->PC -= 1;
 		break;
 	}

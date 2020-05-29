@@ -328,3 +328,115 @@ TEST_CASE("ANA, XRA and ORA groups") {
 	ORA(0x22);
 	REQUIRE(state->A == 0xff);
 }
+
+TEST_CASE("CMP, CMP M and CPI") {
+	state->flag.Z = false;
+	state->flag.S = false;
+	state->flag.C = false;
+
+	state->A = 0xf0;
+	CMP(0xf0);
+	REQUIRE(state->flag.Z == true);
+	CMP(0xff);
+	REQUIRE(state->flag.S == true);
+	REQUIRE(state->flag.C == true);
+}
+
+TEST_CASE("RLC and RRC") {
+	state->A = 0xc8;
+	RLC();
+	RLC();
+	RLC();
+	RRC();
+	RRC();
+	REQUIRE(state->A == 0x91);
+}
+
+TEST_CASE("RAL and RAR") {
+	state->flag.C = false;
+	state->A = 0xc8;
+	RAL();
+	RAL();
+	RAL();
+	REQUIRE(state->A == 0x43);
+	RAR();
+	RAR();
+	REQUIRE(state->A == 0x90);
+}
+
+TEST_CASE("CMC and CMA") {
+	state->A = 0x44;
+	state->flag.C = false;
+	CMA();
+	REQUIRE(state->A == 0xbb);
+	CMC();
+	REQUIRE(state->flag.C == true);
+}
+
+//Branch group
+TEST_CASE("Jump tests") {
+
+}
+
+TEST_CASE("CALL and RET") {
+	state->PC = 0x1000;
+	state->SP = 0xffff;
+	RAM[0x1000] = 0xcd;
+	RAM[0x1001] = 0xa;
+	RAM[0x1002] = 0xb;
+	RAM[0x1003] = 0xc;
+	state->memory = RAM;
+	uint8_t byte2 = state->memory[state->PC + 1];
+	uint8_t byte3 = state->memory[state->PC + 2];
+
+	REQUIRE(state->PC + 2 == 0x1002);
+	CALL(byte2, byte3);
+	REQUIRE(state->PC == 0x0b0a);
+	REQUIRE(state->SP == (0xffff - 2));
+	REQUIRE(state->memory[state->SP] == 0x03);
+	REQUIRE(state->memory[state->SP + 1] == 0x10);
+	RET();
+	REQUIRE(state->PC == 0x1003);
+}
+
+TEST_CASE("RST 0-7") {
+	for (int NNN = 0; NNN <= 7; ++NNN) {
+		RST(NNN);
+		REQUIRE(state->PC == (8 * NNN));
+	}
+}
+
+TEST_CASE("PCHL") {
+	state->H = 0x7f;
+	state->L = 0xf8;
+	PCHL();
+	REQUIRE(state->PC == 0x7ff8);
+}
+
+TEST_CASE("PUSH and POP") {
+	state->B = 0x11;
+	state->C = 0x44;
+	state->SP = 0xffff;
+	PUSH(state->B, state->C);
+	state->B = 0;
+	state->C = 0;
+	POP(state->B, state->C);
+	REQUIRE(state->C == 0x44);
+}
+
+TEST_CASE("PUSH and POP PSW") {
+	state->flag.Z = true;
+	state->flag.C = false;
+	state->flag.P = true;
+	state->flag.S = true;
+	PUSH_PSW();
+	state->flag.Z = false;
+	state->flag.C = true;
+	state->flag.P = false;
+	state->flag.S = false;
+	POP_PSW();
+	REQUIRE(state->flag.Z == true);
+	REQUIRE(state->flag.C == false);
+	REQUIRE(state->flag.P == true);
+	REQUIRE(state->flag.S == true);
+}

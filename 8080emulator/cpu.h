@@ -38,6 +38,6 @@ struct State8080 {
 	bool isOn;
 
 	//number of intructions
-	int count;
+	int count{};
 };
 State8080* state = new State8080;
