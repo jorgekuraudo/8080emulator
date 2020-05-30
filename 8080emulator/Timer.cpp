@@ -9,8 +9,8 @@ void Timer::start() {
 		isRunning = true;
 		timeElapsed = 0;
 		while (isRunning) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-			++timeElapsed;
+			std::this_thread::sleep_for(std::chrono::milliseconds(3));
+			timeElapsed += 3;
 		}
 		});
 }

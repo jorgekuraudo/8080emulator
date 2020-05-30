@@ -36,7 +36,7 @@ void mOUT(uint8_t port, uint8_t value) {
 	case 4:
 	{
 		shift16.status = shift16.status >> 8;
-		shift16.status = (shift16.status & 0x00ff) | (value << 8);
+		shift16.status = (shift16.status & 0x00ff) | ((uint16_t)value << 8);
 		break;
 	}
 	}
@@ -46,17 +46,22 @@ void mOUT(uint8_t port, uint8_t value) {
 //MOV and MVI are together
 void MOV(uint8_t& dest, const uint8_t& orig) {
 	dest = orig;
+	state->HL_pair = state->pair(state->H, state->L);
+	state->BC_pair = state->pair(state->B, state->C);
+	state->DE_pair = state->pair(state->D, state->E);
 }
 
 //LXI and LXI SP are diferent, ideally, i want these two as one function
 void LXI_SP(const uint8_t& byte2, const uint8_t& byte3) {
 	state->SP = (uint16_t)(byte3 << 8) | (uint16_t)byte2;
-	//state->SP += 0x100;
 }
 
 void LXI(uint8_t& regH, uint8_t& regL, const uint8_t& byte2, const uint8_t& byte3) {
 	regH = byte3;
 	regL = byte2;
+	state->HL_pair = state->pair(state->H, state->L);
+	state->BC_pair = state->pair(state->B, state->C);
+	state->DE_pair = state->pair(state->D, state->E);
 }
 
 //load accumulator
@@ -150,6 +155,9 @@ void INR(uint8_t& reg) {
 	reg == 0 ? state->flag.Z = true : state->flag.Z = false;
 	(reg & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 	parity(reg & 0xff) ? state->flag.P = true : state->flag.P = false;
+	state->HL_pair = state->pair(state->H, state->L);
+	state->BC_pair = state->pair(state->B, state->C);
+	state->DE_pair = state->pair(state->D, state->E);
 }
 
 void DCR(uint8_t& reg) {
@@ -157,6 +165,9 @@ void DCR(uint8_t& reg) {
 	reg == 0 ? state->flag.Z = true : state->flag.Z = false;
 	(reg & 0x80) != 0 ? state->flag.S = true : state->flag.S = false;
 	parity(reg & 0xff) ? state->flag.P = true : state->flag.P = false;
+	state->HL_pair = state->pair(state->H, state->L);
+	state->BC_pair = state->pair(state->B, state->C);
+	state->DE_pair = state->pair(state->D, state->E);
 }
 
 void INX(uint8_t& regH, uint8_t& regL) {
@@ -187,8 +198,6 @@ void DAD(const uint8_t& regH, const uint8_t& regL) {
 	state->L = result & 0xff;
 	state->H = (result >> 8) & 0xff;
 	state->HL_pair = state->pair(state->H, state->L);
-	state->BC_pair = state->pair(state->B, state->C);
-	state->DE_pair = state->pair(state->D, state->E);
 }
 
 void ANA(const uint8_t& reg) { //ANA, ANA M, ANI
@@ -240,7 +249,7 @@ void RRC() {
 void RAL() {
 	uint8_t before = state->A;
 	uint8_t after = state->A << 1;
-	after = after | state->flag.C;
+	after = after | (int)state->flag.C;
 	(before & 0x80) != 0 ? state->flag.C = true : state->flag.C = false;
 	state->A = after;
 }
@@ -520,6 +529,9 @@ void POP(uint8_t& regH, uint8_t& regL) {
 	regL = state->memory[state->SP];
 	regH = state->memory[state->SP + 1];
 	state->SP += 2;
+	state->HL_pair = state->pair(state->H, state->L);
+	state->BC_pair = state->pair(state->B, state->C);
+	state->DE_pair = state->pair(state->D, state->E);
 }
 
 void PUSH_PSW() {

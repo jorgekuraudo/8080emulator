@@ -24,11 +24,11 @@ void updateUpperHalf(uint8_t* screen) {
             for (int k = 7; k >= 0; --k) {
                 if (((byte >> k) & 1) != 0) {
                     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                    SDL_RenderDrawPoint(renderer, 8 * i + k, j);
+                    SDL_RenderDrawPoint(renderer, j, -(8 * i + k) + WINDOW_HEIGHT);
                 }
                 else {
                     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-                    SDL_RenderDrawPoint(renderer, 8 * i + k, j);
+                    SDL_RenderDrawPoint(renderer, j, -(8 * i + k) + WINDOW_HEIGHT);
                 }
             }
         }
@@ -45,11 +45,11 @@ void updateBottomHalf(uint8_t* screen) {
             for (int k = 7; k >= 0; --k) {
                 if (((byte >> k) & 1) != 0) {
                     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-                    SDL_RenderDrawPoint(renderer, 8 * i + k, j);
+                    SDL_RenderDrawPoint(renderer, j, -(8 * i + k) + WINDOW_HEIGHT);
                 }
                 else {
                     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-                    SDL_RenderDrawPoint(renderer, 8 * i + k, j);
+                    SDL_RenderDrawPoint(renderer, j, -(8 * i + k) + WINDOW_HEIGHT);
                 }
             }
         }

@@ -5,7 +5,7 @@
 struct bus
 {
 	uint8_t port1{ 0x00 };
-	uint8_t port2{ 0x80 };
+	uint8_t port2{ 0x00 };
 } bus;
 
 //hardware shift register

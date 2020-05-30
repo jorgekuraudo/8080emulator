@@ -18,8 +18,8 @@ int main(int charc, char* args[]) {
 	std::vector<uint8_t> codes = dis.getInstructions();
 
 	//RAM
-	for (int i = 0x1fff; i < 0x10000; ++i) {
-		codes.push_back(0x00);
+	for (int i = 0x1fff; i < 0xffff; ++i) {
+		codes.push_back(0x55);
 	}
 
 	//initialize some CPU parameters	
@@ -54,25 +54,25 @@ int main(int charc, char* args[]) {
 	//emulation starts here
 	myTimer->start();
 	int alter{ 0 }; // to alternate between interrupts
+
 	while(true) {
 		emulateOpCode(state);
-		
 
 		if ((state->isOn) && (myTimer->readTime() > 17)) {
 			if (alter % 2 == 0) {
 				logFile << "===========interrupt one===========\n";
-				updateUpperHalf(&state->memory[0x2400]);
 				interrupt(state, 1);
+				updateUpperHalf(&state->memory[0x2400]);
 				state->isOn = true; //disable interrupt
 			}
 			else {
 				logFile << "===========interrupt two===========\n";
-				updateBottomHalf(&state->memory[0x2400]);
 				interrupt(state, 2);
+				updateBottomHalf(&state->memory[0x2400]);
 				state->isOn = true; //disable interrupt
 			}
-			++alter;
 			myTimer->reset();
+			++alter;
 		}
 		
 

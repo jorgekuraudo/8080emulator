@@ -18,63 +18,21 @@ void interrupt(State8080* state, int num) {
 void emulateOpCode(State8080* state) {
 	
 	uint8_t* opcode = &state->memory[state->PC];
-	
-	if (state->PC == 0x87)
-	{
-		logFile << "===========return from interrupt===========\n";
-	}
 
-	//statements for debugging
-	state->count;
-
-	state->HL_pair = state->pair(state->H, state->L);
-	state->BC_pair = state->pair(state->B, state->C);
-	state->DE_pair = state->pair(state->D, state->E);
-	
-	//printf( "C: %d\tI: %x  \tO: %x \tSP: %x \tBC: %x \tDE: %x \tHL: %x \tA: %x\t ZSPC: %d%d%d%d (HL)%x \n", state->count, (int)state->PC, *opcode, state->SP, state->BC_pair, state->DE_pair, state->HL_pair, state->A, state->flag.Z, state->flag.S, state->flag.P, state->flag.C, state->memory[state->HL_pair]);
-	/*printf("SP(M): 0: %x(%x) 1: %x(%x) 2: %x(%x) 3: %x(%x)\n", state->SP, state->memory[state->SP],
-		state->SP + 1, state->memory[state->SP + 1],
-		state->SP + 2, state->memory[state->SP + 2],
-		state->SP + 3, state->memory[state->SP + 3]);*/
-	/*if (state->count % 1000000 == 0) {
-		printf("COUNT: %d\tINST: %x\tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\tA: %x\t ZSPC: %d%d%d%d\n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair, state->A, state->flag.Z, state->flag.S, state->flag.P, state->flag.C);
-	}*/
-	/*if ((shift16.status != 0 || shift16.result != 0) && (*opcode == 0xdb || *opcode == 0xd3)) {
-		printf("CNT: %d\tINS: %x   \tOPCODE: %x\tA: %x\t%x\t\t%x\n", state->count, (int)state->PC, *opcode, state->A, shift16.status, shift16.result);
-	}*/
-	/*if (state->PC = 0x1439) {
-		printf("CNT: %d\tINS: %x   \tOPCODE: %x\tA: %x\t%x\t\t%x\n", state->count, (int)state->PC, *opcode, state->A, shift16.status, shift16.result);
-	}*/
-
-	//printf("COUNT: %d\tINST: %x   \tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\tA: %x\t ZSPC: %d%d%d%d\n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair, state->A, state->flag.Z, state->flag.S, state->flag.P, state->flag.C);
-
-	//if (state->SP < 0x23DE)
+	////statements for debugging
+	//logFile << "\taddr: " << std::hex << state->PC
+	//	<< "   \tOPCODE: " << (int)*opcode
+	//	<< "\tSP: " << state->SP
+	//	<< "   \tBC: " << state->BC_pair
+	//	<< "   \tDE: " << state->DE_pair
+	//	<< "   \tHL: " << state->HL_pair
+	//	<< "   \tA: " << (int)state->A
+	//	<< "\tZSPC: " << state->flag.Z << state->flag.S << state->flag.P << state->flag.C
+	//	<< "\n";
+	//if (state->PC == 0x87)
 	//{
-	//	/*printf("------------------------------------------------------------------------\n");
-	//	printf("Instruction number: %d\n", state->count);
-	//	printf("Memory address: %x\n", state->PC);
-	//	printf("Intruction: %x\n", *opcode);
-	//	printf("Stack pointer: %x\t stack pointer content: %x\n", (int)state->SP, state->memory[state->SP]);
-	//	printf("Registers info: BC: %x   \tDE: %x   \tHL: %x   \tA: %x\n", BC_pair, DE_pair, HL_pair, state->A);
-	//	printf("Flags: ZSPC: %d%d%d%d\n", state->flag.Z, state->flag.S, state->flag.P, state->flag.C);*/
-	//	printf("COUNT: %d\tINST: %x   \tOPCODE: %x\tSP: %x\tBC: %x\tDE: %x\tHL: %x\tA: %x\t ZSPC: %d%d%d%d\n", state->count, (int)state->PC, *opcode, state->SP, BC_pair, DE_pair, HL_pair, state->A, state->flag.Z, state->flag.S, state->flag.P, state->flag.C);
-	//	//printf("%x\n", state->PC);
-	//	/*printf("\t\t\t\t\t   SP(M): 0: %x(%x)\t 1: %x(%x)\t 2: %x(%x)\t 3: %x(%x)\n", state->SP, state->memory[state->SP],
-	//		state->SP + 1, state->memory[state->SP + 1],
-	//		state->SP + 2, state->memory[state->SP + 2],
-	//		state->SP + 3, state->memory[state->SP + 3]);*/
+	//	logFile << "===========return from interrupt===========\n";
 	//}
-
-	/*logFile << std::dec << "count: " << state->count
-		<< "\taddr: " << std::hex << state->PC
-		<< "   \tOPCODE: " << (int)*opcode
-		<< "\tSP: " << state->SP
-		<< "   \tBC: " << state->BC_pair
-		<< "   \tDE: " << state->DE_pair
-		<< "   \tHL: " << state->HL_pair
-		<< "   \tA: " << (int)state->A
-		<< "\tZSPC: " << state->flag.Z << state->flag.S << state->flag.P << state->flag.C
-		<< "\n";*/
 
 	switch (*opcode)
 	{
@@ -1078,39 +1036,10 @@ void emulateOpCode(State8080* state) {
 	}
 	case 0xcd:		//CALL
 	{
-		if (5 == ((opcode[2] << 8) | opcode[1]))
-		{
-			if (state->C == 9)
-			{
-				uint16_t offset = (state->D << 8) | (state->E);
-				unsigned char* str = &state->memory[offset];  //skip the prefix bytes    
-				while (*str != '$')
-				{
-					printf("%c", *str++);
-				}
-				printf("\n");
-				state->PC += 2;
-				break;
-			}
-			else if (state->C == 2)
-			{
-				//saw this in the inspected code, never saw it called    
-				printf("print char routine called\n");
-			}
-			state->PC += 2;
-			break;
-		}
-		else if (0 == ((opcode[2] << 8) | opcode[1]))
-		{
-			exit(0);
-			printf("smth happened here\n");
-			state->PC += 2;
-			break;
-		}
-		else {
-			CALL(opcode[1], opcode[2]);
-			state->PC -= 1;
-		}
+
+		CALL(opcode[1], opcode[2]);
+		state->PC -= 1;
+
 		
 		break;
 	}
@@ -1144,7 +1073,7 @@ void emulateOpCode(State8080* state) {
 	case 0xd3:		//OUT D8
 	{
 		uint8_t port = opcode[1];
-		uint16_t value = state->A;
+		uint8_t value = state->A;
 		mOUT(port, value);
 		state->PC += 1;
 		break;
@@ -1369,5 +1298,5 @@ void emulateOpCode(State8080* state) {
 	}
 	}
 	state->PC += 1;
-	++state->count;
+	//++state->count;
 }
