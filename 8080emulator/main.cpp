@@ -19,12 +19,17 @@ int main(int charc, char* args[]) {
 
 	//RAM
 	for (int i = 0x1fff; i < 0xffff; ++i) {
-		codes.push_back(0x55);
+		codes.push_back(0xff);
 	}
 
 	//initialize some CPU parameters	
 	state->memory = &codes[0];
 	state->isOn = false;
+
+	//RAM mirror
+	for (int i = 0; i < 0x2000; ++i) {
+		state->memory[0x4000 + i] = state->memory[0x2000 + i];
+	}
 
 	//////offset for debugging
 	//for (int off = 0; off < 0x100; ++off) {
@@ -58,18 +63,18 @@ int main(int charc, char* args[]) {
 	while(true) {
 		emulateOpCode(state);
 
-		if ((state->isOn) && (myTimer->readTime() > 17)) {
+		if ((state->isOn) && (myTimer->readTime() > 8)) {
 			if (alter % 2 == 0) {
 				logFile << "===========interrupt one===========\n";
 				interrupt(state, 1);
 				updateUpperHalf(&state->memory[0x2400]);
-				state->isOn = true; //disable interrupt
+				state->isOn = false; //disable interrupt
 			}
 			else {
 				logFile << "===========interrupt two===========\n";
 				interrupt(state, 2);
 				updateBottomHalf(&state->memory[0x2400]);
-				state->isOn = true; //disable interrupt
+				state->isOn = false; //disable interrupt
 			}
 			myTimer->reset();
 			++alter;
