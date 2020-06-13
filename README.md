@@ -3,6 +3,7 @@
 - Features: 
   - Fully working CPU
   - Cross platform, since it only uses the standard library and SDL, it works on Windows, Linux and MacOs.
+  - Unit Testing using Catch2 framework
 - Screenshots:
 
 
